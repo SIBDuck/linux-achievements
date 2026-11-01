@@ -159,19 +159,19 @@ class Achievement:
     def ls_a(self, pcmd: list):
         ach = "sh.xray"
         ach_meta = self.player_data["achievements"][ach]
-        if self.find_re(pcmd, v.ls_a_find_re, ach_meta) and pcmd[:-1] == "0":
+        if self.find_re(pcmd, v.ls_a_find_re, ach_meta) and pcmd[-1] == "0":
             self.show_ach(ach)
 
     def shrc(self, pcmd: list):
         ach = "sh.shrc"
         ach_meta = self.player_data["achievements"][ach]
-        if self.find_re(pcmd, v.shrc_find_re, ach_meta) and pcmd[:-1] == "0":
+        if self.find_re(pcmd, v.shrc_find_re, ach_meta) and pcmd[-1] == "0":
             self.show_ach(ach)
 
     def rm_rf_as(self, pcmd: list):
         ach = "sh.kill_try"
         ach_meta = self.player_data["achievements"][ach]
-        if self.find_re(pcmd, v.rm_rf_find_re, ach_meta) and pcmd[:-1] != "0":
+        if self.find_re(pcmd, v.rm_rf_find_re, ach_meta) and pcmd[-1] != "0":
             self.show_ach(ach)
 
     def repeater(self, pcmd):
