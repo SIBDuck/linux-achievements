@@ -17,7 +17,7 @@
 
 import os
 import json
-
+from config import variables as v
 def os_join(path):
     return os.path.expanduser(path)
 
@@ -88,8 +88,7 @@ def add_to_path(shell):
                         if content and not content.endswith("\n"):
                             f.write("\n")
                         f.write(line_to_add)
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        DATA_PATH = os.path.join(BASE_DIR, "data", "player data.json")
+        DATA_PATH = v.DATA_PATH
 
         with open(DATA_PATH, "r", encoding='utf-8') as f:
             data = json.load(f)

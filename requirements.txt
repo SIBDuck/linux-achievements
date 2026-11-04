@@ -1,8 +1,5 @@
 altgraph==0.17.5
 packaging==26.3
-plyer==2.1.0
 psutil==7.2.2
-pyinstaller==6.22.3
-pyinstaller-hooks-contrib==2026.8
 setuptools==84.0.0
 watchdog==6.0.0

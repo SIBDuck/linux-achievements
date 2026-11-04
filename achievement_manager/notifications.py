@@ -15,9 +15,10 @@
 
 
 
-from plyer import notification
-import warnings
-import os
+
+import time
+import threading
+import subprocess
 import pathlib
 import sys
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -26,13 +27,24 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 from config import variables as v
 
-warnings.filterwarnings("ignore")
+def _close_after_delay(notification_id):
+    time.sleep(3)
+    subprocess.run(["notify-send", "--close", notification_id])
+
 
 def show_achievement(title, message):
-    notification.notify(
-        title=title,
-        message=message,
-        app_name=v.APP_NAME,
-        app_icon=v.APP_ICON,
-        timeout=5
+    # Show a notification about achievement
+    res = subprocess.run(
+        ["notify-send", "-p", title, message, "-a", v.APP_NAME, "-i", v.APP_ICON],
+        capture_output=True,
+        text=True
     )
+    # Get notification id
+    notification_id = res.stdout.strip()
+    # Start timer for closing notification in background
+    if notification_id:
+        threading.Thread(
+            target=_close_after_delay,
+            args=(notification_id,),
+            daemon=True
+        ).start()

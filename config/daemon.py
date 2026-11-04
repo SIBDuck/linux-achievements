@@ -77,6 +77,7 @@ class FileChangeHandler(FileSystemEventHandler):
                         v.last_trigger = current_trigger
                         ach.update(v.parsed)
 
+
             except FileNotFoundError:
                 pass
         elif abs_src == os.path.abspath(v.PATH_EDITOR):

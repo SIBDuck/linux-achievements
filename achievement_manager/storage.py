@@ -27,20 +27,16 @@ import json
 class JsonStorage:
     def __init__(self):
         self.cheated = False
-        BASE_DIR = v.HOME_DIR / "Linux Achievements" / "achievement_manager"
-        NEIGHBOR_DIR = BASE_DIR.parent / "data"
-
-        self.ACHIEVMENTS_PATH = v.HOME_DIR / "Linux Achievements" / "data" / "achievements.json"
-        self.DATA_PATH = NEIGHBOR_DIR / "player data.json"
-        self.cheated = False
+        self.ACHIEVEMENT_PATH = v.ACHIEVEMENT_PATH
+        self.DATA_PATH = v.DATA_PATH
     def load_achs(self):
-        with open(self.ACHIEVMENTS_PATH, "r", encoding='utf-8') as f:
+        with open(self.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
             return json.load(f)
     def load_data(self):
         with open(self.DATA_PATH, "r", encoding='utf-8') as f:
             raw_data = json.load(f)
 
-        saved_shash = raw_data.get("file_hash")
+        saved_shash = raw_data.pop("file_hash", None)
         calced_hash = crypto.calculate_hash(raw_data)
         if saved_shash != calced_hash:
             self.cheated = True
@@ -49,7 +45,9 @@ class JsonStorage:
 
 
     def save_data(self, data_dict):
-        data_dict["file_hash"] = crypto.calculate_hash(data_dict)
+        data_dict.pop("file_hash", None)
+        current_hash = crypto.calculate_hash(data_dict)
+        data_dict["file_hash"] = current_hash
 
         with open(self.DATA_PATH, "w", encoding='utf-8') as f:
             json.dump(data_dict, f, indent=4, ensure_ascii=False)

@@ -59,9 +59,9 @@ class Achievement:
 
         # =========
 
-    def vim_timecount(self, pcmd: list): # pcmd = [int time (ms), status (START/END), command, attributes, int exit_code]
+    def vim_timecount(self, pcmd: list): # pcmd = [int time (s), status (START/END), command, attributes, int exit_code]
         status = pcmd[1]
-        current_time = pcmd[0]
+        current_time = int(pcmd[0])
         if status == "START":
             v.vim_tm1 = current_time
             return

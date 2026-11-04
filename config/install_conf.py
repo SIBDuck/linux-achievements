@@ -40,7 +40,6 @@ class Installer:
         print("""Type 'q' or 'quit' to quit""")
         while True:
             try:
-                time.sleep(0.01)
                 inp = input("Which shell would you like to install the config for (bash, zsh, fish, q or quit to quit)? (install-config)> ")
                 match inp:
                     case "quit" | "q":
@@ -48,13 +47,13 @@ class Installer:
                         return
                     case "bash" | "zsh" | "fish" as shell:
                         inp1 = input(f"Are you sure you want to install the config for {shell}? [Y/n] (install-config)> ")
-                        match inp1:
-                            case "" | "Y" | "y":
+                        match inp1.lower():
+                            case "" | "y" | "yes":
                                 Installer.install_config_shell(shell)
                                 print("\nQuiting installing mode...")
 
                                 return
-                            case "n":
+                            case "n" | "no":
                                 continue
                             case unknown_status:
                                 print(f"Unknown action: '{unknown_status}'")

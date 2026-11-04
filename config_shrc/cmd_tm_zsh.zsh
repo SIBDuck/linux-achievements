@@ -22,106 +22,79 @@
 #==============================================================================
 
 
+# Загружаем встроенный модуль работы со временем (работает в памяти Zsh)
+zmodload zsh/datetime 2>/dev/null
+
 # Флаг состояния (0 - свободен, 1 - редактор запущен)
-typeset -g _ACH_EDITOR_ACTIVE=0
+_ACH_EDITOR_ACTIVE=0
 
 # Путь к изолированной RAM текущего пользователя
-typeset -g _ACH_RAM_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/linux-achievements"
+_ACH_RAM_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/linux-achievements"
+_ACH_LOG_FILE="$_ACH_RAM_DIR/last_cmd"
 
-# Инициализация: создаем RAM-директорию и записываем дефолтный редактор
+# Регулярка под PCRE (Zsh), учитывает sudo, флаги sudo и пути
+_ACH_ED_REGEX='^([[:space:]]*sudo([[:space:]]+-[a-zA-Z0-9]+([[:space:]]+[^[:space:]]+)?)?[[:space:]]+)?([^[:space:]]*/)?(vi|vim|nvim|nano|emacs|mcedit|gedit|kate|micro|visudo|sudoedit)([[:space:]]|$)'
+
+# Инициализация дефолтного редактора
 if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null; then
     _ed="${EDITOR:-nano}"
-    _ed="${_ed%% *}"   # Убираем аргументы
-    _ed="${_ed##*/}"   # Убираем путь к бинарнику
-    print -r -- "$_ed" > "$_ACH_RAM_DIR/editor"
-    touch "$_ACH_RAM_DIR/daemon.log"
+    _ed="${_ed%% *}"
+    _ed="${_ed##*/}"
+    printf "%s\n" "$_ed" > "$_ACH_RAM_DIR/editor" 2>/dev/null
 fi
 
-
-# Функция-помощник: циклично убирает sudo и раскрывает алиасы в Zsh
-_resolve_alias() {
-    local cmd="$1"
-    local first_word
-
-    while true; do
-        if [[ "$cmd" == "sudo "* ]]; then
-            cmd="${cmd#sudo }"
-        elif [[ "$cmd" == -* ]]; then
-            cmd="${cmd#* }"
-        else
-            break
-        fi
-    done
-
-    first_word="${cmd%% *}"
-
-    # В Zsh проверка алиаса делается через алиасы или глобальные алиасы
-    if [[ -n "${aliases[$first_word]}" ]]; then
-        local alias_body="${aliases[$first_word]}"
-        print -r -- "${alias_body}${cmd#$first_word}"
-    else
-        print -r -- "$cmd"
-    fi
-}
-
-
-# Хук 1: Срабатывает ДО запуска команды (preexec)
-_log_achievements_start() {
-    local 1="$1" # Полная строка введенной команды
-
-    [[ -z "$1" || "$1" == *"_log_achievements"* ]] && return
+# Функция 1: Срабатывает СТРОГО ДО запуска команды (START)
+_log_achievements_preexec() {
+    [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
     (( _ACH_EDITOR_ACTIVE == 1 )) && return
 
-    local resolved_cmd=$(_resolve_alias "$1")
-    local first_word="${resolved_cmd%% *}"
+    local current_cmd="$1"
+    [[ -z "$current_cmd" || "$current_cmd" == *"_log_achievements"* ]] && return
 
-    case "$first_word" in
-        vi|vim|nvim|nano|emacs|mcedit|gedit|kate|micro|visudo|sudoedit)
-            _ACH_EDITOR_ACTIVE=1
-            mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-            strftime -s _timestamp "%s"
-            print -r -- "$_timestamp START $1" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-            ;;
-        *)
-            ;;
-    esac
+    zmodload zsh/pcre 2>/dev/null
+
+    if [[ "$current_cmd" =~ $_ACH_ED_REGEX ]]; then
+        _ACH_EDITOR_ACTIVE=1
+        _CURRENT_RAW_CMD="$current_cmd"
+        mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
+        # ИСПОЛЬЗУЕМ $EPOCHSECONDS — работает мгновенно без вызова /bin/date
+        printf "%s START %s\n" "$EPOCHSECONDS" "$current_cmd" > "$_ACH_LOG_FILE" 2>/dev/null
+    fi
 }
 
-
-# Хук 2: Срабатывает ПОСЛЕ завершения команды (precmd)
-_log_achievements_bash() {
+# Функция 2: Срабатывает ПОСЛЕ завершения команды (END)
+_log_achievements_precmd() {
     local exit_code=$?
+    [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
 
-    # Если редактор был активен, а мы попали в precmd, значит редактор завершился
-    if (( _ACH_EDITOR_ACTIVE == 1 )); then
-        _ACH_EDITOR_ACTIVE=0
+    # Достаем последнюю команду из истории Zsh (флаг -n убирает номера)
+    local last_cmd
+    last_cmd=$(fc -ln -1 -1 2>/dev/null)
+    last_cmd=$(echo "$last_cmd" | xargs)
 
-        # Читаем последнюю команду из истории Zsh
-        local last_cmd="${history[$((HISTCMD-1))]}"
-        [[ -z "$last_cmd" ]] && last_cmd="unknown_editor_cmd"
+    [[ -z "$last_cmd" || "$last_cmd" == *"_log_achievements"* ]] && return
 
-        last_cmd=$(_resolve_alias "$last_cmd")
+    _ACH_EDITOR_ACTIVE=0
 
-        mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-        strftime -s _timestamp "%s"
-        print -r -- "$_timestamp END $last_cmd $exit_code" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-    fi
+    mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
+    # ИСПОЛЬЗУЕМ $EPOCHSECONDS — работает мгновенно без вызова /bin/date
+    printf "%s END %s %s\n" "$EPOCHSECONDS" "$last_cmd" "$exit_code" > "$_ACH_LOG_FILE" 2>/dev/null
 }
 
+# Функция 3: Ловушка на закрытие терминала крестиком
+_log_achievements_zsh_exit() {
+    [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
+    (( _ACH_EDITOR_ACTIVE == 0 )) && return
 
-# Хук 3: Срабатывает при выходе из оболочки / закрытии терминала
-_log_achievements_exit() {
-    if (( _ACH_EDITOR_ACTIVE == 1 )); then
-        mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-        strftime -s _timestamp "%s"
-        print -r -- "$_timestamp END active_editor_terminated 129" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-        _ACH_EDITOR_ACTIVE=0
-    fi
+    mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
+    printf "%s END %s 129\n" "$EPOCHSECONDS" "$_CURRENT_RAW_CMD" > "$_ACH_LOG_FILE" 2>/dev/null
+    _ACH_EDITOR_ACTIVE=0
 }
 
-
-# Регистрация хуков в Zsh
+# Регистрируем функции в стандартные хуки Zsh
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec _log_achievements_start
-add-zsh-hook precmd _log_achievements_bash
-add-zsh-hook zshexit _log_achievements_exit
+add-zsh-hook preexec _log_achievements_preexec
+add-zsh-hook precmd _log_achievements_precmd
+
+# Ловушка выхода
+trap '_log_achievements_zsh_exit' EXIT

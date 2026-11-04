@@ -34,12 +34,16 @@ class Parser:
     @staticmethod
     def parse(log, native_only=False):
         global running
-        parts = log.strip().split()
-        if not parts:
+        try:
+            parts = shlex.split(log)
+            if not parts:
+                return
+        except ValueError as e:
+            print(f"{e}")
             return
 
-        cmd, *args = parts
-        cmd = cmd.lstrip()
+        cmd = parts[0]
+        args = parts[1:]
         if not native_only:
             rlog = re.search(v.PIPE_PATTERN, log)
             if rlog is not None:
@@ -48,12 +52,15 @@ class Parser:
         if cmd == "daemon":
             if not args:
                 print("""Possible actions with 'daemon':
-daemon --start - start the daemon
-daemon --stop - stop the daemon 
-daemon --reboot - reboot the daemon
-daemon --status - print the daemon status
-daemon --logs - print logs
-daemon --rm-logs - delete logs""")
+'daemon --start' - start the daemon
+'daemon --stop' - stop the daemon 
+'daemon --reboot' - reboot the daemon
+'daemon --status' - print the daemon status
+'daemon --logs' - print logs
+'daemon --rm-logs' - delete logs
+'daemon --enable' - enable logging
+'daemon --disable' - disable logging
+'daemon --logging-status' - print logging status""")
                 return
             flag = args[0].lstrip("-").replace("-", "_")
 
@@ -61,7 +68,8 @@ daemon --rm-logs - delete logs""")
                 "start": Daemon.start, "stop": Daemon.stop,
                 "status": Daemon.status, "logs": Daemon.logs,
                 "rm_logs": Daemon.rm_logs, "reboot": Daemon.reboot,
-                "last_cmd": Daemon.last_cmd,
+                "last_cmd": Daemon.last_cmd, "disable": Daemon.disable_logging,
+                "enable": Daemon.enable_logging, "logging_status": Daemon.logging_status
             }
             if flag not in handlers:
                 print(f"Unknown flag: '{args[0]}'")
@@ -129,13 +137,16 @@ shell reset - reset the shell""")
 'daemon --status' - print the daemon status
 'daemon --logs' - print logs
 'daemon --rm-logs' - delete logs
+'daemon --enable' - enable logging
+'daemon --disable' - disable logging
+'daemon --logging-status' - print logging status
 'clear' - clear the screen
 shell -u - print a selected shell for using shell commands here
 shell --select - select a shell for using shell commands here (interactive utility)
 shell shell_name - select the shell for using sh commands here (bash, zsh and fish are supported)
 shell reset - reset the shell
 'fetch' - print the welcome screen
-use ':!' to use bash commands like in vim (pipes with utility-commands are supported)
+use ': to use bash commands like in vim (pipes with utility-commands are supported)
 Hint: you could use 'more' and 'less' if you want to see a big list of something (e.g.: ach --all | more)
 'q'/'quit' - quit this program""")
         elif cmd == "q" or cmd == "quit":
@@ -153,22 +164,8 @@ Hint: you could use 'more' and 'less' if you want to see a big list of something
             Parser.configs_installed()
             # Welcome screen
         elif cmd == "fetch":
-            print("""
-    ###           ###    ###    ###    ###    ###   ###    ###         ####         ######      ###    ###   ###    #########    ###    ###    #########    ###      ###    #########   ###    ###  #########    ########
-    ###           ###    ###    ###    ###    ###    ###  ###         ######      ##########    ###    ###   ###    #########    ###    ###    #########    ####     ###    #########   ###    ###  #########   ##########
-    ###           ###    #####  ###    ###    ###     ######         ###  ###     ###    ###    ###    ###   ###    ###          ###    ###    ###          ############    ###         #####  ###     ###      ###
-    ###           ###    ##########    ###    ###      ####         ##########    ###           ##########   ###    #########     ###  ###     #########    ###  ##  ###    #########   ##########     ###       #########
-    ###           ###    ###  #####    ###    ###     ######        ##########    ###     ##    ##########   ###    #########      ######      #########    ###      ###    ###         ###  #####     ###        ########
-    ###           ###    ###    ###    ###    ###    ###  ###       ###    ###    ###     ##    ###    ###   ###    ###             ####       ###          ###      ###    ###         ###    ###     ###      #      ###
-    ##########    ###    ###    ###     ########    ###    ###      ###    ###    ##########    ###    ###   ###    #########       ####       #########    ###      ###    #########   ###    ###     ###     ####   ####
-    ##########    ###    ###    ###      ######     ###    ###      ###    ###      ######      ###    ###   ###    #########        ##        #########    ###      ###    #########   ###    ###     ###      #########
-                """)
-            print('''Welcome to Linux Achievements! Linux Achievements is a fully open-source (free) software, \
-adding achievements into your GNU/Linux system and licensed funder AGPLv3 or later. 
-Check my github: https://github.com/SIBDuck
-Here you can check your achievements and track your progress.
-Type <h> or <help> for help, type <install-config> to install a shell script for logging commands''')
-        elif cmd[:2] == ":!":
+            fetch()
+        elif cmd[0] == ":":
             rlog = re.match(v.BASH_PATTERN, log)
             if rlog is not None:
                 Parser.parse_shell(rlog)
@@ -180,7 +177,7 @@ Type <h> or <help> for help, type <install-config> to install a shell script for
     # Function to parse bash commands (`:!`)
     @staticmethod
     def parse_shell(log):
-        # Getting the command (on position 1 in a parsed string)
+        # Get the command
         bash_command = log.group(1)
         if bash_command:
             try:
@@ -498,6 +495,7 @@ class Daemon:
     @staticmethod
     def stop(proc: psutil.Process | None):
         if proc is None:
+            Daemon.write_pid(None)
             print("Unavailable to terminate: it is not running")
             return
         print(f"Stopping daemon (PID: {proc.pid})...")
@@ -515,6 +513,7 @@ class Daemon:
             print("[+] Daemon successfully terminated.")
         except psutil.NoSuchProcess:
             print("[-] Process is already terminated.")
+            Daemon.write_pid(None)
         except psutil.AccessDenied:
             print("[!] Access denied: cannot terminate the daemon (not enough privileges?)")
             return
@@ -558,10 +557,6 @@ class Daemon:
     @staticmethod
     def write_pid(pid):
         if pid is None:
-            try:
-                v.DAEMON_PID_PATH.unlink()
-            except FileNotFoundError:
-                pass
             return
         v.DAEMON_PID_PATH.parent.mkdir(parents=True, exist_ok=True)
         v.DAEMON_PID_PATH.write_text(str(pid), encoding="utf-8")
@@ -574,6 +569,28 @@ class Daemon:
         print("[•] Status: STOPPED (daemon is not running)")
         Daemon.write_pid(None)
 
+    @staticmethod
+    def disable_logging():
+        if os.path.exists(v.PATH_DISABLED):
+            print("[-] Cannot disable logging: it is already disabled")
+            return
+        os.makedirs(os.path.dirname(os.path.abspath(v.PATH_DISABLED)), exist_ok=True)
+        with open(v.PATH_DISABLED, "w"):
+            pass
+        print("[+] Logging disabled successfully")
+    @staticmethod
+    def enable_logging():
+        if not os.path.exists(v.PATH_DISABLED):
+            print("[+] Cannot enable logging: it is already enabled")
+            return
+        v.PATH_DISABLED.unlink()
+        print("[+] Logging enabled successfully")
+    @staticmethod
+    def logging_status():
+        if os.path.exists(v.PATH_DISABLED):
+            print("[•] LOGGING STATUS: disabled")
+            return
+        print("[•] LOGGING STATUS: enabled")
     @staticmethod
     def last_cmd():
         with open(v.PATH_LCMD, "r", encoding="utf-8") as log_file:
@@ -602,12 +619,7 @@ class Daemon:
         for i in logs:
             print(i.strip())
 
-
-def main():
-    global running
-    if "TERM" not in os.environ or not os.environ["TERM"]:
-        os.environ["TERM"] = "xterm-256color"
-
+def fetch():
     print("""
     ###           ###    ###    ###    ###    ###   ###    ###         ####         ######      ###    ###   ###    #########    ###    ###    #########    ###      ###    #########   ###    ###  #########    ########
     ###           ###    ###    ###    ###    ###    ###  ###         ######      ##########    ###    ###   ###    #########    ###    ###    #########    ####     ###    #########   ###    ###  #########   ##########
@@ -617,20 +629,24 @@ def main():
     ###           ###    ###    ###    ###    ###    ###  ###       ###    ###    ###     ##    ###    ###   ###    ###             ####       ###          ###      ###    ###         ###    ###     ###      #      ###
     ##########    ###    ###    ###     ########    ###    ###      ###    ###    ##########    ###    ###   ###    #########       ####       #########    ###      ###    #########   ###    ###     ###     ####   ####
     ##########    ###    ###    ###      ######     ###    ###      ###    ###      ######      ###    ###   ###    #########        ##        #########    ###      ###    #########   ###    ###     ###      #########
-    """)
+                    """)
     print('''Welcome to Linux Achievements! Linux Achievements is a fully open-source (free) software, \
-adding achievements into your GNU/Linux system and licensed under AGPLv3. 
-Check my github: https://github.com/SIBDuck
+adding achievements into your GNU/Linux system and licensed funder AGPLv3 or later. 
+Check my github: https://github.com/SIBDuck. Check repository: https://github.com/SIBDuck/linux-achievements
 Here you can check your achievements and track your progress.
 Type <h> or <help> for help, type <install-config> to install a shell script for logging commands''')
 
+def main():
+    global running
+    if "TERM" not in os.environ or not os.environ["TERM"]:
+        os.environ["TERM"] = "xterm-256color"
+
+    fetch()
+
     while running:
         try:
-            time.sleep(0.01)
             inp = input("> ")
-
             Parser.parse(inp)
-
         except KeyboardInterrupt:
             break
     print("\nGoodbye...")

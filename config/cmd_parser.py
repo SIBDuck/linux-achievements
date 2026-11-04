@@ -32,10 +32,14 @@ from achievement_manager import notifications
 class Parser:
     def __init__(self):
         pass
-
     def parse_list(self):
         v.parsed = re.sub(r'\b--color=auto\b', "", v.cmd)
         # Parses to [data, command (may consist of a few elements (el1, el2...), success code (0 or 1))]
         v.parsed = shlex.split(v.parsed)
+
+    def resolve_alias(self, log):
+        cmd = v.parsed[2:-1]
+        cmd_resolved = None
+
 
 parser = Parser()

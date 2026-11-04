@@ -114,7 +114,7 @@
         },
         "sh.cheater": {
             "id": "sh.cheater",
-            "done": true
+            "done": false
         }
     },
     "stats": {
@@ -127,6 +127,6 @@
         "zsh": false,
         "fish": false
     },
-    "shell": null,
-    "file_hash": "dcfc6a9112df27fe9f53cc06d29bddb8769d39978912847f8e8a4afbbd2fd077"
+    "shell": "/usr/bin/bash",
+    "file_hash": "b0aa8470be2929079ffe573e8c7d351887639d3bfdda1902f6cf65bf624d70d0"
 }

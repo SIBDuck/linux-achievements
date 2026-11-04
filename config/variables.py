@@ -24,19 +24,22 @@ UTILITY_NAME = "la"
 APP_NAME = "Linux Achievements"
 
 CURRENT_SHELL = None
+record = True
 # Paths
 # Shells
 BASH_BINARY_PATH = pathlib.Path("/usr/bin/bash")
 ZSH_BINARY_PATH = pathlib.Path("/usr/bin/zsh")
 FISH_BINARY_PATH = pathlib.Path("/usr/bin/fish")
 HOME_DIR = pathlib.Path.home()
-PATH = os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}") + "/linux-achievements"
-PATH_LCMD = PATH + "/last_cmd"
-PATH_EDITOR = PATH + "/editor"
+XDG_PATH = pathlib.Path(os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}") + "/linux-achievements")
+GOTO_DIR = None # pathlib.Path()
+PATH_LCMD = XDG_PATH / "last_cmd"
+PATH_EDITOR = XDG_PATH / "editor"
+PATH_DISABLED = XDG_PATH / "disabled"
 PROJECT_DIR = HOME_DIR / "Linux Achievements"
 APP_ICON = PROJECT_DIR / "images" / "tux.png"
 LOG_FILE_PATH = HOME_DIR / 'Linux Achievements' / "tmp" / 'daemon.log'
-DATA_PATH = PROJECT_DIR / "data" / "player data.json"
+DATA_PATH = PROJECT_DIR / "data" / "player_data.json"
 ACHIEVEMENT_PATH = PROJECT_DIR / "data" / "achievements.json"
 
 DAEMON_BIN_PATH = HOME_DIR / ".local" / "bin" / DAEMON_NAME
@@ -65,7 +68,7 @@ vim_nano_exst_flag = False
 t1 = 0
 repeater_times = 0
 # Patterns
-BASH_PATTERN = r"^:!\s*(.*?)\s*$"
+BASH_PATTERN = r"^:\s*(.*?)\s*$"
 ACH_ID_PATTERN = r"^\s*ach\s+<([\w.]+)>\s*$"
 SHELL_SELECT_PATTERN = r"^\s*shell\s+([\w-]+)\s*$"
 PIPE_PATTERN = r"^(?!:!)([^|]+)\|(.*)"

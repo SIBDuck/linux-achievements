@@ -19,100 +19,83 @@
 # - Use strictly at your own risk. The author assumes no liability for leaks.
 #==============================================================================
 
-# Сохраняем состояние в глобальной переменной
+# Флаг состояния
 set -g _ACH_EDITOR_ACTIVE 0
-set -g _ACH_RAM_DIR "$XDG_RUNTIME_DIR/linux-achievements"
-if test -z "$XDG_RUNTIME_DIR"
-    set _ACH_RAM_DIR "/run/user/(id -u)/linux-achievements"
+
+# Пути к RAM
+set -g _ACH_RAM_DIR (string join '/' (or $XDG_RUNTIME_DIR "/run/user/"(id -u)) "linux-achievements")
+set -g _ACH_LOG_FILE "$_ACH_RAM_DIR/last_cmd"
+
+# Список редакторов для проверки
+set -g _ACH_EDITORS vi vim nvim nano emacs mcedit gedit kate micro visudo sudoedit
+
+# Инициализация дефолтного редактора
+if mkdir -p $_ACH_RAM_DIR 2>/dev/null
+    set -l _ed (or $EDITOR "nano")
+    set _ed (string split ' ' $_ed)
+    set _ed (basename $_ed[1])
+    echo $_ed > "$_ACH_RAM_DIR/editor"
 end
 
-# Инициализация RAM-директории
-if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-    set -l _ed "$EDITOR"
-    if test -z "$_ed"
-        set _ed "nano"
-    end
-    set _ed (string split ' ' $_ed)[1]
-    set _ed (basename "$_ed")
-    echo "$_ed" > "$_ACH_RAM_DIR/editor"
-    touch "$_ACH_RAM_DIR/daemon.log"
-end
-
-
-# Помощник для очистки sudo и аргументов
-function _resolve_alias
-    set -l cmd $argv[1]
-    while true
-        if string match -q "sudo *" -- $cmd
-            set cmd (string replace -r "^sudo " "" -- $cmd)
-        else if string match -q "-*" -- $cmd
-            set cmd (string replace -r "^[^ ]+ " "" -- $cmd)
+# Оптимизированный хелпер для быстрого поиска бинарника
+function _ach_get_binary
+    set -l cmd_args (string split ' ' (string trim $argv))
+    set -l idx 1
+    while test $idx -le (count $cmd_args)
+        if test "$cmd_args[$idx]" = "sudo"
+            set idx (math $idx + 1)
+            while test $idx -le (count $cmd_args); and string match -r '^-' "$cmd_args[$idx]"
+                if string match -r '^-[ugpc]$' "$cmd_args[$idx]"
+                    set idx (math $idx + 2)
+                else
+                    set idx (math $idx + 1)
+                end
+            end
         else
             break
         end
     end
-    echo $cmd
+    if test $idx -le (count $cmd_args)
+        basename $cmd_args[$idx]
+    end
 end
 
-
-# Срабатывает ДО запуска команды
+# Функция 1: Срабатывает ДО выполнения команды (START)
 function _log_achievements_start --on-event fish_preexec
-    if test $_ACH_EDITOR_ACTIVE -eq 1
-        return
-    end
+    if test -f "$_ACH_RAM_DIR/disabled"; return; end
+    if test "$_ACH_EDITOR_ACTIVE" -eq 1; return; end
+    if string match -q "*_log_achievements*" "$argv"; return; end
 
-    set -l full_cmd $argv[1]
-    if string match -q "*_log_achievements*" -- $full_cmd
-        return
-    end
+    set -l clean_bin (_ach_get_binary "$argv")
 
-    set -l resolved (_resolve_alias "$full_cmd")
-    set -l first_word (string split ' ' -- $resolved)[1]
-
-    switch $first_word
-        case vi vim nvim nano emacs mcedit gedit kate micro visudo sudoedit
-            set -g _ACH_EDITOR_ACTIVE 1
-            mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-            date +%s > "$_ACH_RAM_DIR/tmp_time"
-            set -l timestamp (cat "$_ACH_RAM_DIR/tmp_time")
-            rm -f "$_ACH_RAM_DIR/tmp_time"
-            echo "$timestamp START $full_cmd" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-    end
+    if contains "$clean_bin" $_ACH_EDITORS
+        set -g _ACH_EDITOR_ACTIVE 1
+        set -g _CURRENT_RAW_CMD "$argv"
+        mkdir -p $_ACH_RAM_DIR 2>/dev/null
+        # Запись происходит мгновенно
+        printf "%s START %s\n" (date +%s) "$argv" > $_ACH_LOG_FILE 2>/dev/null
+    fi
 end
 
-
-# Срабатывает ПОСЛЕ выполнения команды
-function _log_achievements_post --on-event fish_postexec
+# Функция 2: Срабатывает ПОСЛЕ выполнения команды (END)
+function _log_achievements_bash --on-event fish_postexec
     set -l exit_code $status
+    if test -f "$_ACH_RAM_DIR/disabled"; return; end
+    if string match -q "*_log_achievements*" "$argv"; return; end
 
-    if test $_ACH_EDITOR_ACTIVE -eq 1
-        set -g _ACH_EDITOR_ACTIVE 0
+    set -g _ACH_EDITOR_ACTIVE 0
+    mkdir -p $_ACH_RAM_DIR 2>/dev/null
+    set -l last_cmd (string trim "$argv")
 
-        # Получаем последнюю команду из истории Fish
-        set -l last_cmd (history max 1)
-        if test -z "$last_cmd"
-            set last_cmd "unknown_editor_cmd"
-        end
-
-        set last_cmd (_resolve_alias "$last_cmd")
-
-        mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-        date +%s > "$_ACH_RAM_DIR/tmp_time"
-        set -l timestamp (cat "$_ACH_RAM_DIR/tmp_time")
-        rm -f "$_ACH_RAM_DIR/tmp_time"
-        echo "$timestamp END $last_cmd $exit_code" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-    end
+    printf "%s END %s %s\n" (date +%s) "$last_cmd" $exit_code > $_ACH_LOG_FILE 2>/dev/null
 end
 
-
-# Срабатывает при выходе из сессии Fish
+# Функция 3: Срабатывает при закрытии терминала
 function _log_achievements_exit --on-event fish_exit
-    if test $_ACH_EDITOR_ACTIVE -eq 1
-        mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-        date +%s > "$_ACH_RAM_DIR/tmp_time"
-        set -l timestamp (cat "$_ACH_RAM_DIR/tmp_time")
-        rm -f "$_ACH_RAM_DIR/tmp_time"
-        echo "$timestamp END active_editor_terminated 129" > "$_ACH_RAM_DIR/last_cmd" 2>/dev/null
-        set -g _ACH_EDITOR_ACTIVE 0
-    end
+    if test -f "$_ACH_RAM_DIR/disabled"; return; end
+    if test "$_ACH_EDITOR_ACTIVE" -eq 0; return; end
+
+    mkdir -p $_ACH_RAM_DIR 2>/dev/null
+    printf "%s END %s 129\n" (date +%s) "$_CURRENT_RAW_CMD" > $_ACH_LOG_FILE 2>/dev/null
+    set -g _ACH_EDITOR_ACTIVE 0
 end
