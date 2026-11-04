@@ -23,19 +23,19 @@ You can interact with the software in two ways:
 ---
 **Bash**
 ```console
-  la h # Show the help menu with all available commands
-  la <cmd> # Use utility commands without CLI interface
-  la # Run CLI interface
-  ```
+la h # Show the help menu with all available commands
+la <cmd> # Use utility commands without CLI interface
+la # Run CLI interface
+```
 
 ### 3. Shell Logging Setup
 1. Run the built-in configuration installer:
 ---
 **Bash**
 ```console
-   la install-config # Without CLI interface
-   install-config # In CLI interface
-   ```
+la install-config # Without CLI interface
+install-config # In CLI interface
+```
 
 2. Follow the quick on-screen instructions to finalize the integration.
 
