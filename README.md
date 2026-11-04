@@ -16,7 +16,7 @@ yay -S linux-achievements
 ```
 
 ### 2. Run the utility
-Run the utility (you can run it with `la` to launch CLI interface or with `la <command> (use `la h` to see comands)`)
+Run the utility (you can run it with `la` to launch CLI interface or with `la <command>`, use `la h` or `la help` to see comands)
 You can interact with the software in two ways:
 * **Interactive TUI Mode:** Just type `la` to open the fully featured interactive text interface, view your unlocked progress, and check difficulty levels.
 * **Direct Command Mode:** Run single quick actions without entering the interface, for example:
