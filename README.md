@@ -7,8 +7,7 @@ Yes, it is absolutely safe. Your last command is written directly to `XDG_RUNTIM
 ### 1. Install the utility
 The package is available in the **Arch User Repository** ([AUR](https://aur.archlinux.org/)). What is [AUR](https://wiki.archlinux.org/title/Arch_User_Repository)?
 ---
-<details>
-<summary>Инструкция для Arch Linux (Bash)</summary>
+**Bash**
 ```console
 # Install, using `paru`
 paru -S linux-achievements 
@@ -31,6 +30,7 @@ You can interact with the software in two ways:
 ### 3. Shell Logging Setup
 1. Run the built-in configuration installer:
 ---
+**Bash**
 ```console
    la install-config # Without CLI interface
    install-config # In CLI interface
