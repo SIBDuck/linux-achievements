@@ -14,19 +14,20 @@ paru -S linux-achievements
 # Install, using `yay`
 yay -S linux-achievements
 ```
----
+
 ### 2. Run the utility
 Run the utility (you can run it with `la` to launch CLI interface or with `la <command> (use `la h` to see comands)`)
 You can interact with the software in two ways:
 * **Interactive TUI Mode:** Just type `la` to open the fully featured interactive text interface, view your unlocked progress, and check difficulty levels.
 * **Direct Command Mode:** Run single quick actions without entering the interface, for example:
 ---
+**Bash**
 ```console
   la h # Show the help menu with all available commands
   la <cmd> # Use utility commands without CLI interface
   la # Run CLI interface
   ```
----
+
 ### 3. Shell Logging Setup
 1. Run the built-in configuration installer:
 ---
@@ -35,7 +36,7 @@ You can interact with the software in two ways:
    la install-config # Without CLI interface
    install-config # In CLI interface
    ```
----
+
 2. Follow the quick on-screen instructions to finalize the integration.
 
 ---
