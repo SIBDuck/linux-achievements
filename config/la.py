@@ -24,7 +24,7 @@ import io
 import json
 import install_conf
 import variables as v
-import psu til
+import psutil
 import shlex
 
 running = True
