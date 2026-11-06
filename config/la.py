@@ -24,7 +24,7 @@ import io
 import json
 import install_conf
 import variables as v
-import psutil
+import psu til
 import shlex
 
 running = True
@@ -69,7 +69,8 @@ class Parser:
                 "status": Daemon.status, "logs": Daemon.logs,
                 "rm_logs": Daemon.rm_logs, "reboot": Daemon.reboot,
                 "last_cmd": Daemon.last_cmd, "disable": Daemon.disable_logging,
-                "enable": Daemon.enable_logging, "logging_status": Daemon.logging_status
+                "enable": Daemon.enable_logging, "logging_status": Daemon.logging_status,
+                "clear": Daemon.clear_cmd()
             }
             if flag not in handlers:
                 print(f"Unknown flag: '{args[0]}'")
@@ -597,11 +598,19 @@ class Daemon:
             logs = log_file.read().strip()
         print(logs)
 
+
+
     @staticmethod
     def rm_logs():
         with open(v.LOG_FILE_PATH, "w", encoding='utf-8') as logs:
             logs.write("")
         print("Successfully cleared the log file")
+
+    @staticmethod
+    def clear_cmd():
+        with open(v.PATH_LCMD, "w") as f:
+            f.write("")
+        print("Successfully cleared!")
 
     @staticmethod
     def logs():

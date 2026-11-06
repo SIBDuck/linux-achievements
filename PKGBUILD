@@ -1,15 +1,20 @@
-pkgname=linux-achievements
+pkgname=python-linux-achievements
+_name=${pkgname#python-}
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="The utility adding achievements into your GNU/Linux system!"
 arch=('any')
 url="https://github.com/SIBDuck/linux-achievements"
 license=('AGPL-3.0-or-later')
-depends=('pyhon' 'python-watchdog' 'python-psutil')
+depends=('python' 'python-watchdog' 'python-psutil')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
-source=("${pkgname}::git+${url}.git")
-sha256sums=('idkwhattowrighthere')
+source=("achievement_manager" "config" "pyproject.toml")
+sha256sums=('SKIP' 'SKIP')
 build(){
-    cd "${pkgname}"
-
+    cd "${srcdir}"
+    python -m build --wheel --no-isolation
+}
+package(){
+    cd "${srcdir}"
+    python -m installer --destdir="$pkgdir" dist/*.whl
 }
