@@ -52,7 +52,7 @@ After that, utility is ready for using! Have fun, completing tasks to unlock ach
 ## 🛠️ Requirements
 
 ### Operating System
-* **OS:** Arch Linux (x86_64)
+* **OS:** Arch Linux (any)
 
 ### Supported Shells
 The utility officially supports and hooks into the following shells:
