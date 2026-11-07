@@ -77,12 +77,13 @@ class Parser:
                     "all": ach.all, "locked": ach.locked,
                     "unlocked": ach.unlocked
                 }
-                ach_id_pattern = re.search(v.ACH_ID_PATTERN, log)
+                ach_id_pattern = re.match(v.ACH_ID_PATTERN, log)
                 if flag in handlers:
                     handlers[flag]()
                 elif ach_id_pattern:
-                    flag = ach_id_pattern.group(1).lstrip("<").replace(">", "")
-                    ach.achid(flag)
+                    achievements = ach_id_pattern.group(1)
+                    achievements = shlex.split(achievements)
+                    ach.achid(achievements)
                 else:
                     print(f"Unknown flag: '{args[0]}'")
             case "shell":
@@ -396,25 +397,26 @@ Difficulty: {achievements[i]["diff"]}""")
             return
         print("It seems you have not unlocked any achievements yet")
 
-    def achid(self, id):
+    def achid(self, id: list):
         with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
             achs = json.load(f)
-
+        id_status = dict.fromkeys(id, False)
         with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-
         achievements = achs
-        for i in achievements:
-            if i == id:
-                print(f"""Achievement: {achievements[i]["id"]}
-Title: {achievements[i]["title"]}
-Description: {achievements[i]["description"]}
-Difficulty: {achievements[i]["diff"]}
-Done: {data["achievements"][i]["done"]}
-Secret: {achs[i]["secret"]}""")
-                return
-        else:
-            print(f"Cannot find the achievement: '{id}'")
+        for achievement in achievements:
+            for ach in id:
+                if achievement == ach:
+                    print(f"""Achievement: {achievements[achievement]["id"]}
+Title: {achievements[achievement]["title"]}
+Description: {achievements[achievement]["description"]}
+Difficulty: {achievements[achievement]["diff"]}
+Unlocked: {data["achievements"][achievement]["done"]}
+Secret: {achs[achievement]["secret"]}\n""")
+                    id_status[ach] = True
+        for achievement in id_status:
+            if not id_status[achievement]:
+                print(f"Could not find an achievement/flag: '{achievement}'")
 
 
 class Daemon:
@@ -607,7 +609,7 @@ def man(manual=None):
 ach --all - print all achievements
 ach --locked - print locked achievements
 ach --unlocked - print opened achievements
-ach <ID> - print info about an achievement""",
+ach 'ID' - print info about an achievement (you do not have to use quotation marks, but you can)""",
 
         "shell_man": """Possible actions with 'shell':"
 shell -u - print a selected shell for using bash commands here

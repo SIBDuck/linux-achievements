@@ -69,7 +69,7 @@ t1 = 0
 repeater_times = 0
 # Patterns
 BASH_PATTERN = r"^:\s*(.*?)\s*$"
-ACH_ID_PATTERN = r"^\s*ach\s+<([\w.]+)>\s*$"
+ACH_ID_PATTERN = r"^\s*ach\s+((?:['\"]?[a-zA-Z0-9_.-]+['\"]?\s*)+)$"
 SHELL_SELECT_PATTERN = r"^\s*shell\s+([\w-]+)\s*$"
 PIPE_PATTERN = r"^(?!:!)([^|]+)\|(.*)"
 vim_find_re = r"^\s*(?:(?:sudo|su|env|time|nice|setsid|nohup|stdbuf)\s+(?:-[^\s]+\s+)*)*(vim|vi|micro|nvim|view|vimdiff)(?:\s+|$)"

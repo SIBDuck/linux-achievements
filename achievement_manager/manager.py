@@ -46,20 +46,23 @@ class Achievement:
         self.vi_detector(pcmd)
         self.player_data = self.db.load_data()
         self.vim_time()
+        self.default_achievements(pcmd)
+        self.repeater(pcmd)
+        self.vim_nano_exist(pcmd)
+        """
         self.poweroff_reboot(pcmd)
         self.ls_a(pcmd)
         self.shrc(pcmd)
         self.rm_rf_as(pcmd)
-        self.repeater(pcmd)
         self.vim_close(pcmd)
         self.nano_close(pcmd)
         self.nano_open(pcmd)
-        self.vim_nano_exist(pcmd)
+        """
 
 
         # =========
 
-    def vim_timecount(self, pcmd: list): # pcmd = [int time (s), status (START/END), command, attributes, int exit_code]
+    def vim_timecount(self, pcmd: list): # pcmd = [int time (seconds), status ("START"|"END"), command, attributes, str exit_code]
         status = pcmd[1]
         current_time = int(pcmd[0])
         if status == "START":
@@ -91,9 +94,12 @@ class Achievement:
         if self.cheated and not ach["done"]:
             self.show_ach("sh.cheater")
 
-    def find_re(self, pcmd: list, RE, ach_mt):
+    def find_re(self, pcmd: list, RE, ach_mt, return_research=False):
         cmd = " ".join(str(arg) for arg in pcmd[2:]).strip()
-        return re.search(RE, cmd, re.IGNORECASE) and not ach_mt["done"]
+        match = re.search(RE, cmd, re.IGNORECASE)
+        res = match if not ach_mt["done"] else None
+
+        return res, match if return_research else res
 
     def vi_detector(self, pcmd: list):
         ach = "vim.open.vi"
@@ -141,6 +147,40 @@ class Achievement:
         if data_changed:
             self.db.save_data(self.player_data)
 
+    def default_achievements(self, pcmd: list):
+        thresholds = [
+            # Achievement id, regex, execution status ("START"|"END"|"", "" - does not matter),
+            ("sh.poweroff", v.poweroff_find_re, "END", "1"), # expected exit code (e.g.: "1" (E.C. 1 is expected, "!0" - not 0 is expected, "" - does not matter)
+            ("sh.reboot", v.reboot_find_re, "END", "1"),
+            ("sh.xray", v.ls_a_find_re, "END", "0"),
+            ("sh.shrc", v.shrc_find_re, "END", "0"),
+            ("sh.kill_try", v.rm_rf_find_re, "END" ,"!0"),
+            ("nano.open", v.nano_find_re, "END", "0"),
+            ("vim.close.200", v.vim_find_re, "END", "0"),
+            ("vim.close.force", v.vim_find_re, "END", "!0"),
+            ("nano.close.200", v.nano_find_re, "END", "0"),
+            ("nano.close.force", v.nano_find_re, "END", "!0"),
+
+
+        ]
+        data_changed = False
+
+        for ach, regex, sts, ec in thresholds:
+            ach_meta = self.player_data["achievements"][ach]
+            if ec.startswith("!"):
+                if self.find_re(pcmd, regex, ach_meta) and pcmd[-1] != ec[1:] and pcmd[1] == sts:
+                    self.show_ach(ach, update_db=False)
+                    data_changed = True
+                continue
+
+            if self.find_re(pcmd, regex, ach_meta) and pcmd[-1] == ec and pcmd[1] == sts:
+                self.show_ach(ach, update_db=False)
+                data_changed = True
+
+        if data_changed:
+            self.db.save_data(self.player_data)
+
+
     def poweroff_reboot(self, pcmd: list):
         pr_thresholds = [
             "sh.poweroff",
@@ -148,9 +188,13 @@ class Achievement:
         ]
         data_changed = False
         for ach in pr_thresholds:
+            ach_meta = self.player_data["achievements"][ach]
             if ach == "sh.poweroff":
-                ach_meta = self.player_data["achievements"][ach]
                 if self.find_re(pcmd, v.poweroff_find_re, ach_meta) and pcmd[-1] == "1":
+                    data_changed = True
+                    self.show_ach(ach, update_db=False)
+            else:
+                if self.find_re(pcmd, v.reboot_find_re, ach_meta) and pcmd[-1] == "1":
                     data_changed = True
                     self.show_ach(ach, update_db=False)
         if data_changed:
@@ -228,12 +272,11 @@ class Achievement:
         if self.find_re(pcmd, v.nano_find_re, ach_meta):
             self.show_ach(ach)
     def vim_nano_exist(self, pcmd):
-        cmd = " ".join(str(arg) for arg in pcmd[2:]).strip()
         ach = "vim_nano.new_exisitng_file"
-        match = re.match(v.vim_nano_exst_find_re, cmd)
-        if match:
+        ach_meta = self.player_data["achievements"][ach]
+        findre, match = self.find_re(pcmd, v.vim_nano_exst_find_re, ach_meta, return_research=True)
+        if match is not None:
             path = next(item for item in match.groups() if item is not None).strip().replace('\\ ', ' ')
-
             full_path = os.path.expanduser(path)
             if not os.path.exists(full_path):
                 self.show_ach(ach)
