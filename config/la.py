@@ -27,7 +27,7 @@ import variables as v
 import psutil
 import shlex
 
-
+# TODO: add redirecting
 class Parser:
     def __init__(self):
         pass
@@ -65,7 +65,7 @@ class Parser:
                     "clear": daemon.clear_cmd,
                 }
                 if flag not in handlers:
-                    print(f"Unknown flag: '{args[0]}'")
+                    print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
                     return
                 handlers[flag]()
             case "ach":
@@ -85,7 +85,7 @@ class Parser:
                     achievements = shlex.split(achievements)
                     ach.achid(achievements)
                 else:
-                    print(f"Unknown flag: '{args[0]}'")
+                    print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
             case "shell":
                 if not args:
                     man(manual="shell_man")
@@ -102,7 +102,7 @@ class Parser:
                         shell = shell_pattern.group(1)
                         shell_.select(shell)
                     else:
-                        print(f"Unknown flag: '{args[0]}'")
+                        print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
 
             case "h" | "help" | "man":
                 man(manual="main")
@@ -128,7 +128,7 @@ class Parser:
                     self.parse_shell(rlog)
                     return
             case _:
-                print(f"Uknown command: '{cmd}'.")
+                print(f"Unknown command: '{cmd}'", file=sys.stderr)
 
     # Function to parse bash commands (`:`)
     def parse_shell(self, log):
@@ -152,7 +152,7 @@ class Parser:
                         print(result.stderr.strip())
                     return
                 print("""Shell is not selected. Select a shell before running pipes or shell commands \
-with 'shell --select' or shell shell_name""")
+with 'shell --select' or shell shell_name""", file=sys.stderr)
                 return
             except Exception as e:
                 print(f"{e}")
@@ -166,7 +166,7 @@ with 'shell --select' or shell shell_name""")
             # Tokenize the string
             tokens = shlex.split(log, posix=False)
         except ValueError as e:
-            print(f"Quotation mark parsing error: {e}")
+            print(f"Quotation mark parsing error: {e}", file=sys.stderr)
             return [log]
         pipeline = []
         current_cmd = []
@@ -218,7 +218,7 @@ with 'shell --select' or shell shell_name""")
                     process.communicate(input=app_output_text)
                     return
                 print("""Shell is not selected. Select a shell before running pipes or shell commands \
-                with 'shell --select' or shell shell_name""")
+                with 'shell --select' or shell shell_name""", file=sys.stderr)
                 return
             except Exception as e:
                 print(f"{e}")
@@ -250,6 +250,7 @@ with 'shell --select' or shell shell_name""")
             print(f"Shell: {shell}. Installed: {shell_data[shell]}")  # configs[i] = True | False
 
 
+
 class Shell:
     def __init__(self):
         pass
@@ -262,7 +263,7 @@ class Shell:
             print(f"{shell_path.name} ({shell_path})")
             return
         print(f"Shell is not selected. You can select it with 'shell --select' \
-or 'shell shell_name' (bash, zsh, fish are supported)")
+or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
     def select_util(self):
         print("This script selects a shell for using shell commands")
         print("Type 'q' or 'quit' to quit")
@@ -291,7 +292,7 @@ or 'shell shell_name' (bash, zsh, fish are supported)")
                         print("\nQuiting...")
                         return
                     case unknown:
-                        print(f"Unknown shell typed: {unknown}")
+                        print(f"Unknown shell typed: {unknown}", file=sys.stderr)
             except KeyboardInterrupt:
                 print("\nQuiting...")
                 return
@@ -313,7 +314,7 @@ or 'shell shell_name' (bash, zsh, fish are supported)")
                         json.dump(data, f, ensure_ascii=False, indent=4)
                     print(f"{shell.capitalize()} successfully selected as a default shell")
                     return
-                print(f"You already use {shell} as a default shell")
+                print(f"You already use {shell} as a default shell", file=sys.stderr)
             case "reset":
                 if data["shell"] is not None:
                     data["shell"] = None
@@ -321,10 +322,10 @@ or 'shell shell_name' (bash, zsh, fish are supported)")
                         json.dump(data, f, ensure_ascii=False, indent=4)
                     print("Shell reset successfully")
                     return
-                print("Shell is already reset")
+                print("Shell is already reset", file=sys.stderr)
 
             case unknown:
-                print(f"Unknown shell typed: {unknown}")
+                print(f"Unknown shell typed: {unknown}", file=sys.stderr)
 
 
 
@@ -395,7 +396,7 @@ Difficulty: {achievements[i]["diff"]}""")
         if count_u:
             print(f"Total unlocked: {count_u}/{count}")
             return
-        print("It seems you have not unlocked any achievements yet")
+        print("It seems you have not unlocked any achievements yet", file=sys.stderr)
 
     def achid(self, id: list):
         with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
@@ -416,7 +417,7 @@ Secret: {achs[achievement]["secret"]}\n""")
                     id_status[ach] = True
         for achievement in id_status:
             if not id_status[achievement]:
-                print(f"Could not find an achievement/flag: '{achievement}'")
+                print(f"Could not find an achievement/flag: '{achievement}'", file=sys.stderr)
 
 
 class Daemon:
@@ -449,7 +450,7 @@ class Daemon:
     def stop(self, proc: psutil.Process | None):
         if proc is None:
             self.write_pid(None)
-            print("Unavailable to terminate: it is not running")
+            print("Unavailable to terminate: it is not running", file=sys.stderr)
             return
         print(f"Stopping daemon (PID: {proc.pid})...")
         try:
@@ -457,7 +458,7 @@ class Daemon:
             proc.wait(timeout=5)
             print("[+] Daemon successfully terminated.")
         except psutil.TimeoutExpired:
-            print("[!] Terminating is taking too long. Killing forcibly...")
+            print("[!] Terminating is taking too long. Killing forcibly...", file=sys.stderr)
             try:
                 proc.kill()
                 proc.wait()
@@ -468,17 +469,17 @@ class Daemon:
             print("[-] Process is already terminated.")
             self.write_pid(None)
         except psutil.AccessDenied:
-            print("[!] Access denied: cannot terminate the daemon (not enough privileges?)")
+            print("[!] Access denied: cannot terminate the daemon (not enough privileges?)", file=sys.stderr)
             return
         except Exception as e:
-            print(f"[!] Unexpected error while stopping daemon: {e}")
+            print(f"[!] Unexpected error while stopping daemon: {e}", file=sys.stderr)
             return
         self.write_pid(None)
 
     def start(self, reboot=False):
         proc = self.find_daemon_process()
         if proc:
-            print(f"[-] Daemon is already running (PID: {proc.pid}).")
+            print(f"[-] Daemon is already running (PID: {proc.pid}).", file=sys.stderr)
             self.write_pid(proc.pid)  # синхронизируем кэш
             return
         try:
@@ -497,10 +498,10 @@ class Daemon:
             else:
                 print(f"[+] Daemon successfully rebooted and started in background (PID: {proc.pid}).")
         except FileNotFoundError:
-            print(f"[!] Error: Binary file not found at {v.DAEMON_BIN_PATH}")
+            print(f"[!] Error: Binary file not found at {v.DAEMON_BIN_PATH}", file=sys.stderr)
         except Exception as e:
             prefix = "rebooting daemon" if reboot else "starting daemon"
-            print(f"[!] Unexpected error while {prefix}: {e}")
+            print(f"[!] Unexpected error while {prefix}: {e}", file=sys.stderr)
 
     def reboot(self):
         proc = self.find_daemon_process()
@@ -522,7 +523,7 @@ class Daemon:
 
     def disable_logging(self):
         if os.path.exists(v.PATH_DISABLED):
-            print("[-] Cannot disable logging: it is already disabled")
+            print("[-] Cannot disable logging: it is already disabled", file=sys.stderr)
             return
         os.makedirs(os.path.dirname(os.path.abspath(v.PATH_DISABLED)), exist_ok=True)
         with open(v.PATH_DISABLED, "w"):
@@ -530,7 +531,7 @@ class Daemon:
         print("[+] Logging disabled successfully")
     def enable_logging(self):
         if not os.path.exists(v.PATH_DISABLED):
-            print("[+] Cannot enable logging: it is already enabled")
+            print("[+] Cannot enable logging: it is already enabled", file=sys.stderr)
             return
         v.PATH_DISABLED.unlink()
         print("[+] Logging enabled successfully")
@@ -557,12 +558,12 @@ class Daemon:
     def logs(self):
         try:
             if os.path.getsize(v.LOG_FILE_PATH) == 0:
-                print("The file is empty")
+                print("The file is empty", file=sys.stderr)
                 return
         except FileNotFoundError:
             # Touch the file if it does not exist
             pathlib.Path(v.LOG_FILE_PATH).touch()
-            print("The file did not exist, but has been touched")
+            print("The file did not exist, but has been touched", file=sys.stderr)
         with open(v.LOG_FILE_PATH, "r", encoding='utf-8') as f:
             logs = f.readlines()
 
