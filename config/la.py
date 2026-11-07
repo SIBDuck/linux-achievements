@@ -27,12 +27,11 @@ import variables as v
 import psutil
 import shlex
 
-running = True
 
 class Parser:
-    @staticmethod
-    def parse(log, native_only=False, is_cli=True):
-        global running
+    def __init__(self):
+        pass
+    def parse(self, log, native_only=False, is_cli=True):
         try:
             parts = shlex.split(log)
             if not parts:
@@ -46,137 +45,92 @@ class Parser:
         if not native_only and is_cli:
             rlog = re.search(v.PIPE_PATTERN, log)
             if rlog is not None:
-                Parser.parse_pipe(log)
+                self.parse_pipe(log)
                 return
-        if cmd == "daemon":
-            if not args:
-                print("""Possible actions with 'daemon':
-'daemon --start' - start the daemon
-'daemon --stop' - stop the daemon 
-'daemon --reboot' - reboot the daemon
-'daemon --status' - print the daemon status
-'daemon --logs' - print logs
-'daemon --rm-logs' - delete logs
-'daemon --enable' - enable logging
-'daemon --disable' - disable logging
-'daemon --logging-status' - print logging status""")
-                return
-            flag = args[0].lstrip("-").replace("-", "_")
+        match cmd:
+            case "daemon":
+                if not args:
+                    man(manual="daemon_man")
+                    return
 
-            handlers = {
-                "start": Daemon.start, "stop": Daemon.stop,
-                "status": Daemon.status, "logs": Daemon.logs,
-                "rm_logs": Daemon.rm_logs, "reboot": Daemon.reboot,
-                "last_cmd": Daemon.last_cmd, "disable": Daemon.disable_logging,
-                "enable": Daemon.enable_logging, "logging_status": Daemon.logging_status,
-                "clear": Daemon.clear_cmd()
-            }
-            if flag not in handlers:
-                print(f"Unknown flag: '{args[0]}'")
-                return
-            proc = Daemon.find_daemon_process()
-            match flag:
-                case "stop" | "status":
-                    handlers[flag](proc)
-                case _:
+                flag = args[0].lstrip("-").replace("-", "_")
+                proc = daemon.find_daemon_process()
+
+                handlers = {
+                    "start": lambda: daemon.start(), "stop": lambda: daemon.stop(proc),
+                    "status": lambda: daemon.status(proc), "logs": daemon.logs,
+                    "rm_logs": daemon.rm_logs, "reboot": daemon.reboot,
+                    "last_cmd": daemon.last_cmd, "disable": daemon.disable_logging,
+                    "enable": daemon.enable_logging, "logging_status": daemon.logging_status,
+                    "clear": daemon.clear_cmd,
+                }
+                if flag not in handlers:
+                    print(f"Unknown flag: '{args[0]}'")
+                    return
+                handlers[flag]()
+            case "ach":
+                if not args:
+                    man(manual="ach_man")
+                    return
+                flag = args[0].lstrip("-").replace("-", "_")
+                handlers = {
+                    "all": ach.all, "locked": ach.locked,
+                    "unlocked": ach.unlocked
+                }
+                ach_id_pattern = re.search(v.ACH_ID_PATTERN, log)
+                if flag in handlers:
                     handlers[flag]()
-        elif cmd == "ach":
-            if not args:
-                print("""Possible actions with 'ach':
-ach --all - print all achievements
-ach --locked - print locked achievements
-ach --unlocked - print opened achievements
-ach <ID> - print info about an achievement""")
-                return
-            flag = args[0].lstrip("-").replace("-", "_")
-            handlers = {
-                "all": Ach.all, "locked": Ach.locked,
-                "unlocked": Ach.unlocked
-            }
-            ach_id_pattern = re.search(v.ACH_ID_PATTERN, log)
-            if flag in handlers:
-                handlers[flag]()
-            elif ach_id_pattern:
-                flag = ach_id_pattern.group(1).lstrip("<").replace(">", "")
-                Ach.achid(flag)
-            else:
-                print(f"Unknown flag: '{args[0]}'")
-        elif cmd == "shell":
-            if not args:
-                print("""Possible actions with 'shell':"
-shell -u - print a selected shell for using bash commands here
-shell --select - select a shell for using bash commands here (interactive utility)
-shell shell_name - select the shell for using bash commands here (bash, zsh and fish are supported)
-shell reset - reset the shell""")
-                return
-            flag = args[0].lstrip("-").replace("-", "_")
-            handlers = {
-                "u": Shell.using, "select": Shell.select_util,
-            }
-            if flag in handlers:
-                handlers[flag]()
-            else:
-                shell_pattern = re.search(v.SHELL_SELECT_PATTERN, log)
-                if shell_pattern:
-                    shell = shell_pattern.group(1)
-                    Shell.select(shell)
+                elif ach_id_pattern:
+                    flag = ach_id_pattern.group(1).lstrip("<").replace(">", "")
+                    ach.achid(flag)
                 else:
                     print(f"Unknown flag: '{args[0]}'")
+            case "shell":
+                if not args:
+                    man(manual="shell_man")
+                    return
+                flag = args[0].lstrip("-").replace("-", "_")
+                handlers = {
+                    "u": shell_.using, "select": shell_.select_util,
+                }
+                if flag in handlers:
+                    handlers[flag]()
+                else:
+                    shell_pattern = re.search(v.SHELL_SELECT_PATTERN, log)
+                    if shell_pattern:
+                        shell = shell_pattern.group(1)
+                        shell_.select(shell)
+                    else:
+                        print(f"Unknown flag: '{args[0]}'")
 
-        elif cmd == "h" or cmd == "help":
-            print("""'install-config' - install a shell script for logging commands
-'configs-installed' - print info about installed configs for the shells
-'configs-all' - print info about shells and configs for them
-'ach --locked' - print locked achievements
-'ach --all' - print all achievements
-'ach --unlocked' - print opened achievements
-'ach <ID>' - print info about an achievement (angle brackets are expected!)
-'daemon --start' - start the daemon
-'daemon --stop' - stop the daemon 
-'daemon --reboot' - reboot the daemon
-'daemon --status' - print the daemon status
-'daemon --logs' - print logs
-'daemon --rm-logs' - delete logs
-'daemon --enable' - enable logging
-'daemon --disable' - disable logging
-'daemon --logging-status' - print logging status
-'clear' - clear the screen
-shell -u - print a selected shell for using shell commands here
-shell --select - select a shell for using shell commands here (interactive utility)
-shell shell_name - select the shell for using sh commands here (bash, zsh and fish are supported)
-shell reset - reset the shell
-'fetch' - print the welcome screen
-use ': to use bash commands like in vim (pipes with utility-commands are supported)
-Hint: you could use 'more' and 'less' if you want to see a big list of something (e.g.: ach --all | more)
-'q'/'quit' - quit this program""")
-        elif cmd == "q" or cmd == "quit":
-            running = False
+            case "h" | "help" | "man":
+                man(manual="main")
+            case "q" | "quit":
+                v.running = False
 
-        elif cmd == "clear":
-            subprocess.run(["clear"], stderr=subprocess.DEVNULL)
+            case "clear":
+                subprocess.run(["clear"], stderr=subprocess.DEVNULL)
 
-        elif cmd == "install-config":
-            install_conf.Installer.install_config()
-        elif cmd == "configs-all":
-            Parser.configs_all()
+            case "install-config":
+                install_conf.Installer.install_config()
+            case "configs-all":
+                self.configs_all()
 
-        elif cmd == "installed-configs":
-            Parser.configs_installed()
-            # Welcome screen
-        elif cmd == "fetch":
-            fetch()
-        elif cmd[0] == ":":
-            rlog = re.match(v.BASH_PATTERN, log)
-            if rlog is not None:
-                Parser.parse_shell(rlog)
-                return
-        else:
-            print(f"Uknown command: '{cmd}'.")
+            case "installed-configs":
+                self.configs_installed()
+                # Welcome screen
+            case "fetch":
+                fetch()
+            case str() if cmd.startswith(":"):
+                rlog = re.match(v.BASH_PATTERN, log)
+                if rlog is not None:
+                    self.parse_shell(rlog)
+                    return
+            case _:
+                print(f"Uknown command: '{cmd}'.")
 
-
-    # Function to parse bash commands (`:!`)
-    @staticmethod
-    def parse_shell(log):
+    # Function to parse bash commands (`:`)
+    def parse_shell(self, log):
         # Get the command
         bash_command = log.group(1)
         if bash_command:
@@ -203,8 +157,7 @@ with 'shell --select' or shell shell_name""")
                 print(f"{e}")
 
     # Function to parse pipes
-    @staticmethod
-    def parse_pipeline(log: str):
+    def parse_pipeline(self, log: str):
         log = log.strip()
         if not log:
             return []
@@ -228,9 +181,8 @@ with 'shell --select' or shell shell_name""")
 
         return pipeline
 
-    @staticmethod
-    def parse_pipe(log):
-        pipeline = Parser.parse_pipeline(log)
+    def parse_pipe(self, log):
+        pipeline = self.parse_pipeline(log)
         if pipeline:
             # Native part
             native_part = pipeline[0]
@@ -242,7 +194,7 @@ with 'shell --select' or shell shell_name""")
             sys.stdout = captured_output
             try:
                 # Parse native part
-                Parser.parse(native_part, native_only=True)
+                self.parse(native_part, native_only=True)
             finally:
                 # Restore the stdout back to the system terminal
                 sys.stdout = old_stdout
@@ -270,8 +222,7 @@ with 'shell --select' or shell shell_name""")
             except Exception as e:
                 print(f"{e}")
 
-    @staticmethod
-    def configs_installed():
+    def configs_installed(self):
         # Get player's data
         with open(v.DATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -287,8 +238,7 @@ with 'shell --select' or shell shell_name""")
             print("No configs installed. You can install using `install-config`")
 
     # Function to print info about configs
-    @staticmethod
-    def configs_all():
+    def configs_all(self):
         # Get player's data
         with open(v.DATA_PATH, "r", encoding='utf-8') as f:
             data = json.load(f)
@@ -300,8 +250,10 @@ with 'shell --select' or shell shell_name""")
 
 
 class Shell:
-    @staticmethod
-    def using():
+    def __init__(self):
+        pass
+
+    def using(self):
         with open(v.DATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         if data["shell"] is not None:
@@ -310,8 +262,7 @@ class Shell:
             return
         print(f"Shell is not selected. You can select it with 'shell --select' \
 or 'shell shell_name' (bash, zsh, fish are supported)")
-    @staticmethod
-    def select_util():
+    def select_util(self):
         print("This script selects a shell for using shell commands")
         print("Type 'q' or 'quit' to quit")
         while True:
@@ -343,8 +294,7 @@ or 'shell shell_name' (bash, zsh, fish are supported)")
             except KeyboardInterrupt:
                 print("\nQuiting...")
                 return
-    @staticmethod
-    def select(shell):
+    def select(self, shell):
         with open(v.DATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         match shell:
@@ -375,9 +325,12 @@ or 'shell shell_name' (bash, zsh, fish are supported)")
             case unknown:
                 print(f"Unknown shell typed: {unknown}")
 
+
+
 class Ach:
-    @staticmethod
-    def all():
+    def __init__(self):
+        pass
+    def all(self):
         print("Printing the list of entire achievements...")
         with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
             achs = json.load(f)
@@ -395,8 +348,7 @@ Description: {achievements[i]["description"]}
 Difficulty: {achievements[i]["diff"]}
 Done: {data["achievements"][i]["done"]}""")
 
-    @staticmethod
-    def locked():
+    def locked(self):
         count_u = 0
         count = 0
         print("Printing the list of locked achievements...")
@@ -419,8 +371,7 @@ Difficulty: {achievements[i]["diff"]}""")
 
         print(f"Total locked: {count_u}/{count}")
 
-    @staticmethod
-    def unlocked():
+    def unlocked(self):
         count_u = 0
         count = 0
         print("Printing the list of unlocked achievements...")
@@ -445,8 +396,7 @@ Difficulty: {achievements[i]["diff"]}""")
             return
         print("It seems you have not unlocked any achievements yet")
 
-    @staticmethod
-    def achid(id):
+    def achid(self, id):
         with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
             achs = json.load(f)
 
@@ -468,8 +418,9 @@ Secret: {achs[i]["secret"]}""")
 
 
 class Daemon:
-    @staticmethod
-    def find_daemon_process() -> psutil.Process | None:
+    def __init__(self):
+        pass
+    def find_daemon_process(self) -> psutil.Process | None:
         target = pathlib.Path(v.DAEMON_BIN_PATH).resolve()
         live, deleted = None, None
         for proc in psutil.process_iter(["pid", "name", "exe"]):
@@ -478,8 +429,9 @@ class Daemon:
                 if info["name"] != v.DAEMON_NAME:
                     continue
                 exe = info.get("exe")
-                if not exe:
+                if not exe or exe is None:
                     continue
+
                 is_deleted = exe.endswith(" (deleted)")
                 exe_path = pathlib.Path(exe.replace(" (deleted)", "")).resolve()
                 if exe_path != target:
@@ -492,10 +444,9 @@ class Daemon:
                 continue
         return live or deleted
 
-    @staticmethod
-    def stop(proc: psutil.Process | None):
+    def stop(self, proc: psutil.Process | None):
         if proc is None:
-            Daemon.write_pid(None)
+            self.write_pid(None)
             print("Unavailable to terminate: it is not running")
             return
         print(f"Stopping daemon (PID: {proc.pid})...")
@@ -513,21 +464,20 @@ class Daemon:
             print("[+] Daemon successfully terminated.")
         except psutil.NoSuchProcess:
             print("[-] Process is already terminated.")
-            Daemon.write_pid(None)
+            self.write_pid(None)
         except psutil.AccessDenied:
             print("[!] Access denied: cannot terminate the daemon (not enough privileges?)")
             return
         except Exception as e:
             print(f"[!] Unexpected error while stopping daemon: {e}")
             return
-        Daemon.write_pid(None)
+        self.write_pid(None)
 
-    @staticmethod
-    def start(reboot=False):
-        proc = Daemon.find_daemon_process()
+    def start(self, reboot=False):
+        proc = self.find_daemon_process()
         if proc:
             print(f"[-] Daemon is already running (PID: {proc.pid}).")
-            Daemon.write_pid(proc.pid)  # синхронизируем кэш
+            self.write_pid(proc.pid)  # синхронизируем кэш
             return
         try:
             with open(os.devnull, "r") as devnull_in, \
@@ -539,38 +489,36 @@ class Daemon:
                     stderr=log_out,
                     start_new_session=True, )
 
-            Daemon.write_pid(proc.pid)
-            print(f"[+] Daemon successfully started in background (PID: {proc.pid})." if not reboot
-        else f"[+] Daemon successfully rebooted and started in background (PID: {proc.pid}).")
+            self.write_pid(proc.pid)
+            if not reboot:
+                print(f"[+] Daemon successfully started in background (PID: {proc.pid}).")
+            else:
+                print(f"[+] Daemon successfully rebooted and started in background (PID: {proc.pid}).")
         except FileNotFoundError:
             print(f"[!] Error: Binary file not found at {v.DAEMON_BIN_PATH}")
         except Exception as e:
             prefix = "rebooting daemon" if reboot else "starting daemon"
             print(f"[!] Unexpected error while {prefix}: {e}")
 
-    @staticmethod
-    def reboot():
-        proc = Daemon.find_daemon_process()
-        Daemon.stop(proc)
-        Daemon.start(reboot=True)
+    def reboot(self):
+        proc = self.find_daemon_process()
+        self.stop(proc)
+        self.start(reboot=True)
 
-    @staticmethod
-    def write_pid(pid):
+    def write_pid(self, pid):
         if pid is None:
             return
         v.DAEMON_PID_PATH.parent.mkdir(parents=True, exist_ok=True)
         v.DAEMON_PID_PATH.write_text(str(pid), encoding="utf-8")
 
-    @staticmethod
-    def status(proc: psutil.Process | None):
+    def status(self, proc: psutil.Process | None):
         if proc is not None:
             print(f"[•] Status: RUNNING (PID: {proc.pid})")
             return
         print("[•] Status: STOPPED (daemon is not running)")
-        Daemon.write_pid(None)
+        self.write_pid(None)
 
-    @staticmethod
-    def disable_logging():
+    def disable_logging(self):
         if os.path.exists(v.PATH_DISABLED):
             print("[-] Cannot disable logging: it is already disabled")
             return
@@ -578,41 +526,33 @@ class Daemon:
         with open(v.PATH_DISABLED, "w"):
             pass
         print("[+] Logging disabled successfully")
-    @staticmethod
-    def enable_logging():
+    def enable_logging(self):
         if not os.path.exists(v.PATH_DISABLED):
             print("[+] Cannot enable logging: it is already enabled")
             return
         v.PATH_DISABLED.unlink()
         print("[+] Logging enabled successfully")
-    @staticmethod
-    def logging_status():
+    def logging_status(self):
         if os.path.exists(v.PATH_DISABLED):
             print("[•] LOGGING STATUS: disabled")
             return
         print("[•] LOGGING STATUS: enabled")
-    @staticmethod
-    def last_cmd():
+    def last_cmd(self):
         with open(v.PATH_LCMD, "r", encoding="utf-8") as log_file:
             logs = log_file.read().strip()
         print(logs)
 
-
-
-    @staticmethod
-    def rm_logs():
+    def rm_logs(self):
         with open(v.LOG_FILE_PATH, "w", encoding='utf-8') as logs:
             logs.write("")
         print("Successfully cleared the log file")
 
-    @staticmethod
-    def clear_cmd():
+    def clear_cmd(self):
         with open(v.PATH_LCMD, "w") as f:
             f.write("")
         print("Successfully cleared!")
 
-    @staticmethod
-    def logs():
+    def logs(self):
         try:
             if os.path.getsize(v.LOG_FILE_PATH) == 0:
                 print("The file is empty")
@@ -626,6 +566,10 @@ class Daemon:
 
         for i in logs:
             print(i.strip())
+parser = Parser()
+daemon = Daemon()
+ach = Ach()
+shell_ = Shell()
 
 def fetch():
     print("""
@@ -642,19 +586,64 @@ def fetch():
 adding achievements into your GNU/Linux system and licensed funder AGPLv3 or later. 
 Check my github: https://github.com/SIBDuck. Check repository: https://github.com/SIBDuck/linux-achievements
 Here you can check your achievements and track your progress.
-Type <h> or <help> for help, type <install-config> to install a shell script for logging commands''')
+Type <h>, <help> or <man> for help, type <install-config> to install a shell script for logging commands''')
+
+def man(manual=None):
+    manuals = {
+        "daemon_man": """Possible actions with 'daemon':
+'daemon --start' - start the daemon
+'daemon --stop' - stop the daemon 
+'daemon --reboot' - reboot the daemon
+'daemon --status' - print the daemon status
+'daemon --logs' - print logs
+'daemon --rm-logs' - delete logs
+'daemon --enable' - enable logging
+'daemon --disable' - disable logging
+'daemon --last-cmd' - print the last command
+'daemon --logging-status' - print logging status
+'daemon --clear' - clear the last command log""",
+
+        "ach_man": """Possible actions with 'ach':
+ach --all - print all achievements
+ach --locked - print locked achievements
+ach --unlocked - print opened achievements
+ach <ID> - print info about an achievement""",
+
+        "shell_man": """Possible actions with 'shell':"
+shell -u - print a selected shell for using bash commands here
+shell --select - select a shell for using bash commands here (interactive utility)
+shell shell_name - select the shell for using bash commands here (bash, zsh and fish are supported)
+shell reset - reset the shell"""
+    }
+
+    man_all = f"""'help'/'h'/'man' - print this menu
+install-config' - install a shell script for logging commands
+'configs-installed' - print info about installed configs for the shells
+'configs-all' - print info about shells and configs for them
+{manuals["daemon_man"]}
+{manuals["ach_man"]}
+{manuals["shell_man"]}
+'clear' - clear the screen
+'fetch' - print the welcome screen
+use ':' to use bash commands like in vim (pipes with utility-commands are supported)
+Hint: you could use 'more' and 'less' if you want to see a big list of something (e.g.: ach --all | more)
+'q'/'quit' - quit this program"""
+    if manual in manuals.keys():
+        print(manuals[manual])
+        return
+    print(man_all)
+
 
 def main():
-    global running
     if "TERM" not in os.environ or not os.environ["TERM"]:
         os.environ["TERM"] = "xterm-256color"
 
     fetch()
 
-    while running:
+    while v.running:
         try:
             inp = input("> ")
-            Parser.parse(inp)
+            parser.parse(inp)
         except KeyboardInterrupt:
             break
     print("\nGoodbye...")

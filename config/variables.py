@@ -22,7 +22,7 @@ import pathlib
 DAEMON_NAME = "lad"
 UTILITY_NAME = "la"
 APP_NAME = "Linux Achievements"
-
+running = True
 CURRENT_SHELL = None
 record = True
 # Paths

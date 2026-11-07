@@ -30,12 +30,7 @@ CONFIG_DIR = ROOT_DIR / "config"
 if str(CONFIG_DIR) not in sys.path:
     sys.path.insert(0, str(CONFIG_DIR))
 
-try:
-    import variables as v
-except ModuleNotFoundError:
-    sys.path.insert(0, str(pathlib.Path.home() / "Linux Achievements" / "config"))
-    import variables as v
-
+from config import variables as v
 
 with open(v.DAEMON_PID_PATH, "w") as f:
     f.write(str(os.getpid()))
