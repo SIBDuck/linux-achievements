@@ -1,11 +1,12 @@
 import la
 import sys
+import shlex
 def start_cli():
     la.main()
 
 def main():
     try:
-        raw_input = " ".join(sys.argv[1:]).strip()
+        raw_input = shlex.join(sys.argv[1:]).strip()
         if not raw_input:
             start_cli()
             return
