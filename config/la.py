@@ -586,7 +586,7 @@ def fetch():
     ##########    ###    ###    ###      ######     ###    ###      ###    ###      ######      ###    ###   ###    #########        ##        #########    ###      ###    #########   ###    ###     ###      #########
                     """)
     print('''Welcome to Linux Achievements! Linux Achievements is a fully open-source (free) software, \
-adding achievements into your GNU/Linux system and licensed funder AGPLv3 or later. 
+adding achievements into your GNU/Linux system and licensed under AGPLv3 or later. 
 Check my github: https://github.com/SIBDuck. Check repository: https://github.com/SIBDuck/linux-achievements
 Here you can check your achievements and track your progress.
 Type <h>, <help> or <man> for help, type <install-config> to install a shell script for logging commands''')
