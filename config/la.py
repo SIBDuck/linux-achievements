@@ -29,10 +29,9 @@ import shlex
 
 running = True
 
-
 class Parser:
     @staticmethod
-    def parse(log, native_only=False):
+    def parse(log, native_only=False, is_cli=True):
         global running
         try:
             parts = shlex.split(log)
@@ -44,7 +43,7 @@ class Parser:
 
         cmd = parts[0]
         args = parts[1:]
-        if not native_only:
+        if not native_only and is_cli:
             rlog = re.search(v.PIPE_PATTERN, log)
             if rlog is not None:
                 Parser.parse_pipe(log)

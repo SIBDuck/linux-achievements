@@ -1,6 +1,5 @@
 import la
 import sys
-import variables as v
 def start_cli():
     la.main()
 
@@ -9,7 +8,7 @@ def main():
     if not raw_input:
         start_cli()
         return
-    la.Parser.parse(raw_input)
+    la.Parser.parse(raw_input, is_cli=False)
 
 if __name__ == "__main__":
     main()
