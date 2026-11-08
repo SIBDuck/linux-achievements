@@ -27,24 +27,20 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 from config import variables as v
 
-def _close_after_delay(notification_id):
-    time.sleep(3)
-    subprocess.run(["notify-send", "--close", notification_id])
-
-
 def show_achievement(title, message):
-    # Show a notification about achievement
-    res = subprocess.run(
-        ["notify-send", "-p", title, message, "-a", v.APP_NAME, "-i", v.APP_ICON],
-        capture_output=True,
-        text=True
-    )
-    # Get notification id
-    notification_id = res.stdout.strip()
-    # Start timer for closing notification in background
-    if notification_id:
-        threading.Thread(
-            target=_close_after_delay,
-            args=(notification_id,),
-            daemon=True
-        ).start()
+    cmd = [
+        "gdbus", "call", "--session",
+        "--dest", "org.freedesktop.Notifications",
+        "--object-path", "/org/freedesktop/Notifications",
+        "--method", "org.freedesktop.Notifications.Notify",
+        v.APP_NAME, # App name
+        "0", # Replacement ID (0 - create new)
+        str(v.APP_ICON.resolve()),  # Icon path (string only)
+        title, # Header
+        message, # Body (description)
+        "[]", # Buttons (close button by default)
+        "{'urgency': <byte 2>}", # Importance level (2 - critical. Notification would be on top of some windows)
+        str(3000) # Timeout (milliseconds)
+    ]
+
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

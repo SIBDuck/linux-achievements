@@ -44,9 +44,10 @@ ACHIEVEMENT_PATH = PROJECT_DIR / "data" / "achievements.json"
 
 DAEMON_BIN_PATH = HOME_DIR / ".local" / "bin" / DAEMON_NAME
 DAEMON_PID_PATH = HOME_DIR / "Linux Achievements" / "tmp" / "daemon.pid"
+DAEMON_OUTPUT_PATH = HOME_DIR / "Linux Achievements" / "tmp" / "output"
 
 cmd = ''
-parsed = ''
+parsed = []
 # State variables
 vim_time_s = 0
 vim_time_ = 0
