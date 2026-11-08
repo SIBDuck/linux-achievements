@@ -22,20 +22,20 @@
 #==============================================================================
 
 
-# Загружаем встроенный модуль работы со временем (работает в памяти Zsh)
+# Load the built-in time module (runs completely in memory without spawning a subshell)
 zmodload zsh/datetime 2>/dev/null
 
-# Флаг состояния (0 - свободен, 1 - редактор запущен)
+# State flag (0 = idle/free, 1 = editor session currently active)
 _ACH_EDITOR_ACTIVE=0
 
-# Путь к изолированной RAM текущего пользователя
+# Path to the current user's isolated runtime RAM directory
 _ACH_RAM_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/linux-achievements"
 _ACH_LOG_FILE="$_ACH_RAM_DIR/last_cmd"
 
-# Регулярка под PCRE (Zsh), учитывает sudo, флаги sudo и пути
+# Regular expression matching PCRE standards (Zsh) to identify text editors (supports sudo, flags, paths)
 _ACH_ED_REGEX='^([[:space:]]*sudo([[:space:]]+-[a-zA-Z0-9]+([[:space:]]+[^[:space:]]+)?)?[[:space:]]+)?([^[:space:]]*/)?(vi|vim|nvim|nano|emacs|mcedit|gedit|kate|micro|visudo|sudoedit)([[:space:]]|$)'
 
-# Инициализация дефолтного редактора
+# Initialize the RAM directory and determine the system's default text editor
 if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null; then
     _ed="${EDITOR:-nano}"
     _ed="${_ed%% *}"
@@ -43,58 +43,72 @@ if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null; then
     printf "%s\n" "$_ed" > "$_ACH_RAM_DIR/editor" 2>/dev/null
 fi
 
-# Функция 1: Срабатывает СТРОГО ДО запуска команды (START)
+# Hook 1: Executed IMMEDIATELY BEFORE command execution (Triggers START status exclusively for text editors)
 _log_achievements_preexec() {
+    # Early exit if the logging mechanism is explicitly disabled by the utility
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
     (( _ACH_EDITOR_ACTIVE == 1 )) && return
 
     local current_cmd="$1"
+    # Ignore empty commands and internal telemetry tracking utilities
     [[ -z "$current_cmd" || "$current_cmd" == *"_log_achievements"* ]] && return
 
+    # Dynamically load the Zsh PCRE engine for regex matching
     zmodload zsh/pcre 2>/dev/null
 
     if [[ "$current_cmd" =~ $_ACH_ED_REGEX ]]; then
         _ACH_EDITOR_ACTIVE=1
         _CURRENT_RAW_CMD="$current_cmd"
         mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-        # ИСПОЛЬЗУЕМ $EPOCHSECONDS — работает мгновенно без вызова /bin/date
+
+        # Log structure: [EPOCH_TIMESTAMP] START [RAW_COMMAND]
+        # Uses built-in $EPOCHSECONDS for instant execution without invoking /bin/date
         printf "%s START %s\n" "$EPOCHSECONDS" "$current_cmd" > "$_ACH_LOG_FILE" 2>/dev/null
     fi
 }
 
-# Функция 2: Срабатывает ПОСЛЕ завершения команды (END)
+# Hook 2: Executed AFTER command completion (Logs the END status and exit code for all commands)
 _log_achievements_precmd() {
     local exit_code=$?
+
+    # Early exit if the logging mechanism is explicitly disabled by the utility
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
 
-    # Достаем последнюю команду из истории Zsh (флаг -n убирает номера)
+    # Fetch the latest entry from Zsh history buffer (-n flag suppresses line numbers)
     local last_cmd
     last_cmd=$(fc -ln -1 -1 2>/dev/null)
     last_cmd=$(echo "$last_cmd" | xargs)
 
+    # Ignore empty commands and internal tracking utilities
     [[ -z "$last_cmd" || "$last_cmd" == *"_log_achievements"* ]] && return
 
+    # Reset the active editor state flag
     _ACH_EDITOR_ACTIVE=0
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-    # ИСПОЛЬЗУЕМ $EPOCHSECONDS — работает мгновенно без вызова /bin/date
+
+    # Log structure: [EPOCH_TIMESTAMP] END [CLEANED_COMMAND] [EXIT_CODE]
+    # Uses built-in $EPOCHSECONDS for high performance
     printf "%s END %s %s\n" "$EPOCHSECONDS" "$last_cmd" "$exit_code" > "$_ACH_LOG_FILE" 2>/dev/null
 }
 
-# Функция 3: Ловушка на закрытие терминала крестиком
+# Hook 3: Fallback executed if the terminal window is closed unexpectedly (e.g., SIGHUP/window X button) during active editing
 _log_achievements_zsh_exit() {
+    # Early exit if logging is disabled or no text editor session was running
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
     (( _ACH_EDITOR_ACTIVE == 0 )) && return
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
+
+    # Log the abrupt termination with a standard exit code 129 (SIGHUP)
     printf "%s END %s 129\n" "$EPOCHSECONDS" "$_CURRENT_RAW_CMD" > "$_ACH_LOG_FILE" 2>/dev/null
     _ACH_EDITOR_ACTIVE=0
 }
 
-# Регистрируем функции в стандартные хуки Zsh
+# Register the standard Zsh execution hooks via the autoload framework
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _log_achievements_preexec
 add-zsh-hook precmd _log_achievements_precmd
 
-# Ловушка выхода
+# Register the fallback exit trap
 trap '_log_achievements_zsh_exit' EXIT

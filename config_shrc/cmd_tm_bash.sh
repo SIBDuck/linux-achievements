@@ -21,17 +21,17 @@
 # - Use strictly at your own risk. The author assumes no liability for leaks.
 #==============================================================================
 
-# Флаг состояния (0 - свободен, 1 - редактор запущен)
+# State flag (0 = idle/free, 1 = editor session currently active)
 _ACH_EDITOR_ACTIVE=0
 
-# Путь к изолированной RAM текущего пользователя
+# Path to the current user's isolated runtime RAM directory
 _ACH_RAM_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/linux-achievements"
 _ACH_LOG_FILE="$_ACH_RAM_DIR/last_cmd"
 
-# Регулярка для быстрой проверки редакторов (учитывает sudo, флаги sudo и пути)
+# Regular expression to quickly identify text editors (supports sudo, flags, paths, and common editors)
 _ACH_ED_REGEX='^([[:space:]]*sudo([[:space:]]+-[a-zA-Z0-9]+([[:space:]]+[^[:space:]]+)?)?[[:space:]]+)?([^[:space:]]*/)?(vi|vim|nvim|nano|emacs|mcedit|gedit|kate|micro|visudo|sudoedit)([[:space:]]|$)'
 
-# Инициализация RAM-директории и определение дефолтного редактора
+# Initialize the RAM directory and determine the system's default text editor
 if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null; then
     _ed="${EDITOR:-nano}"
     _ed="${_ed%% *}"
@@ -39,74 +39,79 @@ if mkdir -p "$_ACH_RAM_DIR" 2>/dev/null; then
     printf "%s\n" "$_ed" > "$_ACH_RAM_DIR/editor" 2>/dev/null
 fi
 
-# Функция 1: Срабатывает ДО запуска команды (Фиксируем СТАРТ только для редакторов)
+# Hook 1: Executed BEFORE a command runs (Triggers START status exclusively for text editors)
 _log_achievements_start() {
-    # ПРОВЕРКА БЛОКИРОВКИ: если запись выключена утилитой, выходим
+    # Early exit if the logging mechanism is explicitly disabled by the utility
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
 
+    # Ignore empty commands, prompt expansions, internal hooks, and active editor subshells
     [[ -z "$BASH_COMMAND" || "$BASH_COMMAND" == "$PROMPT_COMMAND" ]] && return
     [[ "$BASH_COMMAND" == *"_log_achievements"* || "$BASH_COMMAND" == *"__vte"* ]] && return
     (( _ACH_EDITOR_ACTIVE == 1 )) && return
 
-    # Проверяем команду нашей быстрой регуляркой прямо в памяти Bash
+    # Check if the incoming command matches the editor regex using native Bash pattern matching
     if [[ "$BASH_COMMAND" =~ $_ACH_ED_REGEX ]]; then
         _ACH_EDITOR_ACTIVE=1
         _CURRENT_RAW_CMD="$BASH_COMMAND"
         mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
 
-        # ЧИСТЫЙ СТАРТ: Только таймстамп, статус и сама команда
+        # Log structure: [TIMESTAMP] START [RAW_COMMAND]
         printf "%(%s)T START %s\n" "-1" "$BASH_COMMAND" > "$_ACH_LOG_FILE" 2>/dev/null
     fi
 }
 
-# Функция 2: Срабатывает ПОСЛЕ завершения команды (Фиксируем ИСХОД для всего)
+# Hook 2: Executed AFTER a command finishes (Logs the END status and exit code for all commands)
 _log_achievements_bash() {
     local exit_code=$?
 
-    # ПРОВЕРКА БЛОКИРОВКИ: если запись выключена утилитой, выходим
+    # Early exit if the logging mechanism is explicitly disabled by the utility
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
-
     [[ "$BASH_COMMAND" == "$PROMPT_COMMAND" ]] && return
 
-    # Вытаскиваем из буфера текущую активную строку истории через встроенный макрос
+    # Retrieve the last executed command line from Bash history
     local last_cmd
     last_cmd=$(history 1)
 
-    # Очищаем от номеров строк истории, которые Bash успел приписать
+    # Strip the leading history line numbers added by Bash
     last_cmd="${last_cmd#*[0-9]*  }"
-    # Убираем лишние пробелы по краям
+    # Trim leading and trailing whitespaces
     last_cmd=$(echo "$last_cmd" | xargs)
 
+    # Ignore empty commands and internal tracking utilities
     [[ -z "$last_cmd" || "$last_cmd" == *"_log_achievements"* || "$last_cmd" == *"__vte"* ]] && return
 
+    # Reset the active editor state flag
     _ACH_EDITOR_ACTIVE=0
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-    # Записываем: ТАЙМСТАМП END ОРИГИНАЛЬНАЯ_КОМАНДА КОД_ВОЗВРАТА
+    # Log structure: [TIMESTAMP] END [CLEANED_COMMAND] [EXIT_CODE]
     printf "%(%s)T END %s %s\n" "-1" "$last_cmd" "$exit_code" > "$_ACH_LOG_FILE" 2>/dev/null
 }
 
-# Функция 3: Срабатывает, если терминал закрыли крестиком во время работы редактора
+# Hook 3: Fallback executed if the terminal window is closed unexpectedly (e.g., SIGHUP/window X button) during active editing
 _log_achievements_exit() {
     trap - DEBUG
 
-    # ПРОВЕРКА БЛОКИРОВКИ: если запись выключена утилитой, выходим
+    # Early exit if logging is disabled or no text editor session was running
     [[ -f "$_ACH_RAM_DIR/disabled" ]] && return
     (( _ACH_EDITOR_ACTIVE == 0 )) && return
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-    # Записываем END для оборванного редактора с кодом 129
+    # Log the abrupt termination with a standard exit code 129 (SIGHUP)
     printf "%(%s)T END %s 129\n" "-1" "$_CURRENT_RAW_CMD" > "$_ACH_LOG_FILE" 2>/dev/null
     _ACH_EDITOR_ACTIVE=0
 }
 
+# Ensure DEBUG trap is inherited by functions and subshells
 set +t
 
+# Inject the post-command hook into PROMPT_COMMAND without breaking existing hooks
 if [[ -z "$PROMPT_COMMAND" ]]; then
     PROMPT_COMMAND="_log_achievements_bash"
 elif [[ "$PROMPT_COMMAND" != *"_log_achievements_bash"* ]]; then
     PROMPT_COMMAND="_log_achievements_bash; $PROMPT_COMMAND"
 fi
 
+# Register system hooks using native Bash traps
 trap '_log_achievements_start' DEBUG
 trap '_log_achievements_exit' EXIT
