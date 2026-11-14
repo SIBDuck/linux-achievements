@@ -29,7 +29,6 @@ import variables as v
 import psutil
 import shlex
 
-
 # TODO: add redirecting
 class Parser:
     def __init__(self):
@@ -137,7 +136,6 @@ class Parser:
                         continue
                     man(manual="main")
 
-
             case "q" | "quit":
                 v.running = False
 
@@ -198,23 +196,22 @@ class Parser:
                             continue
                     else:
                         raise SyntaxError("syntax error near unexpected token `newline'")
-                    command_tokens.append(token)
+                    redirects.append([token])
                     i+=1
-                return redirects, command_tokens
+                return redirects
             print("""Shell is not selected. Select a shell before running shell commands \
             with 'shell --select' or shell shell_name""", file=sys.stderr)
-            return None, None
+            return None
 
         except ValueError as e:
             print(f"{e}", file=sys.stderr)
         except Exception as e:
             print(f"{e}", file=sys.stderr)
-        return None, None
+        return None
     def redirecting_shell(self, log: str):
-        redirects, command_tokens = self.parse_redirecting(log)
-        if redirects is not None and command_tokens is not None:
-            tokens = shlex.shlex(log, posix=True, punctuation_chars=True)
-            tokens = list(tokens)
+        redirects = self.parse_redirecting(log)
+
+
 
     # Function to parse bash commands (`:`)
     def parse_shell(self, log):
@@ -568,7 +565,7 @@ class Daemon:
         proc = self.find_daemon_process()
         if proc:
             print(f"[-] Daemon is already running (PID: {proc.pid}).", file=sys.stderr)
-            self.write_pid(proc.pid)  # синхронизируем кэш
+            self.write_pid(proc.pid)
             return
         try:
             with open(os.devnull, "r") as devnull_in, \
@@ -682,12 +679,11 @@ class History:
             self._clear_shell()
         else:
             print(f"Unknown argument: '{arg}'", file=sys.stderr)
-import run
 class Debugger:
     def __init__(self):
         pass
     def check_files(self):
-        created = run.init_ram_dir()
+        created = init_ram_dir()
         if created:
             print("[+] Missing files and folders created successfully")
             return
@@ -792,6 +788,15 @@ def wh(cmd: str, is_cli=False, clear_his=False):
         return
     if not clear_his:
         _cli_history_fd.write(f"{cmd}\n")
+
+def init_ram_dir():
+    what_to_return = False
+    for path in [v.PATH_LCMD, v.PATH_EDITOR, v.DAEMON_PID_PATH, v.LOG_FILE_PATH]:
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+            what_to_return = True
+    return what_to_return
 
 v.LASH_HISTORY_CLI.touch(exist_ok=True)
 _cli_history_fd = v.LASH_HISTORY_CLI.open("a", encoding="utf-8", buffering=1)
