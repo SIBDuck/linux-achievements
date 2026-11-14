@@ -34,10 +34,12 @@ class Parser:
     def parse_list(self):
         v.parsed = re.sub(r'\b--color=auto\b', "", v.cmd)
         # Parses to [time (seconds from 01.01.1970), command (may consist of a few elements (el1, el2...), success code (int))]
-        v.parsed = shlex.split(v.parsed)
-        with open(v.DAEMON_OUTPUT_PATH, "w", encoding="utf-8") as f:
-            f.write(shlex.join(v.parsed))
+        try:
+            v.parsed = shlex.split(v.parsed, comments=True)
 
+            return True
+        except ValueError:
+            return False
     def resolve_alias(self, log):
         cmd = v.parsed[2:-1]
         cmd_resolved = None

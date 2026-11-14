@@ -13,7 +13,7 @@
 # GNU Affero General Public License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <https://www.gnu.org/licenses/>.
+# along with this program. If not, see <https://gnu.org>.
 
 # ==============================================================================
 # WARNING & SECURITY NOTICE:
@@ -84,8 +84,8 @@ _log_achievements_bash() {
     _ACH_EDITOR_ACTIVE=0
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
-    # Log structure: [TIMESTAMP] END [CLEANED_COMMAND] [EXIT_CODE]
-    printf "%(%s)T END %s %s\n" "-1" "$last_cmd" "$exit_code" > "$_ACH_LOG_FILE" 2>/dev/null
+    # Log structure: [TIMESTAMP] END [EXIT_CODE] [CLEANED_COMMAND]
+    printf "%(%s)T END %s %s\n" "-1" "$exit_code" "$last_cmd" > "$_ACH_LOG_FILE" 2>/dev/null
 }
 
 # Hook 3: Fallback executed if the terminal window is closed unexpectedly (e.g., SIGHUP/window X button) during active editing
@@ -98,7 +98,7 @@ _log_achievements_exit() {
 
     mkdir -p "$_ACH_RAM_DIR" 2>/dev/null
     # Log the abrupt termination with a standard exit code 129 (SIGHUP)
-    printf "%(%s)T END %s 129\n" "-1" "$_CURRENT_RAW_CMD" > "$_ACH_LOG_FILE" 2>/dev/null
+    printf "%(%s)T END 129 %s\n" "-1" "$_CURRENT_RAW_CMD" > "$_ACH_LOG_FILE" 2>/dev/null
     _ACH_EDITOR_ACTIVE=0
 }
 

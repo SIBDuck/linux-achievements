@@ -25,12 +25,17 @@ APP_NAME = "Linux Achievements"
 running = True
 CURRENT_SHELL = None
 record = True
+min_len = None
+
 # Paths
 # Shells
 BASH_BINARY_PATH = pathlib.Path("/usr/bin/bash")
 ZSH_BINARY_PATH = pathlib.Path("/usr/bin/zsh")
 FISH_BINARY_PATH = pathlib.Path("/usr/bin/fish")
+
 HOME_DIR = pathlib.Path.home()
+LASH_HISTORY_SHELL = HOME_DIR / ".lash_history_shell"
+LASH_HISTORY_CLI = HOME_DIR / ".lash_history_cli"
 XDG_PATH = pathlib.Path(os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}") + "/linux-achievements")
 GOTO_DIR = None # pathlib.Path()
 PATH_LCMD = XDG_PATH / "last_cmd"
@@ -38,13 +43,12 @@ PATH_EDITOR = XDG_PATH / "editor"
 PATH_DISABLED = XDG_PATH / "disabled"
 PROJECT_DIR = HOME_DIR / "Linux Achievements"
 APP_ICON = PROJECT_DIR / "images" / "tux.png"
-LOG_FILE_PATH = HOME_DIR / 'Linux Achievements' / "tmp" / 'daemon.log'
 DATA_PATH = PROJECT_DIR / "data" / "player_data.json"
 ACHIEVEMENT_PATH = PROJECT_DIR / "data" / "achievements.json"
 
 DAEMON_BIN_PATH = HOME_DIR / ".local" / "bin" / DAEMON_NAME
-DAEMON_PID_PATH = HOME_DIR / "Linux Achievements" / "tmp" / "daemon.pid"
-DAEMON_OUTPUT_PATH = HOME_DIR / "Linux Achievements" / "tmp" / "output"
+DAEMON_PID_PATH = XDG_PATH / "tmp" / "daemon.pid"
+LOG_FILE_PATH = XDG_PATH / "tmp" / 'daemon.log'
 
 cmd = ''
 parsed = []
@@ -71,6 +75,7 @@ repeater_times = 0
 # Patterns
 BASH_PATTERN = r"^:\s*(.*?)\s*$"
 ACH_ID_PATTERN = r"^\s*ach\s+((?:['\"]?[a-zA-Z0-9_.-]+['\"]?\s*)+)$"
+RECURSION_PATTERN = r"^\s*:\s*la(?:\s+:\s*la)*\s*$"
 SHELL_SELECT_PATTERN = r"^\s*shell\s+([\w-]+)\s*$"
 PIPE_PATTERN = r"^(?!:!)([^|]+)\|(.*)"
 vim_find_re = r"^\s*(?:(?:sudo|su|env|time|nice|setsid|nohup|stdbuf)\s+(?:-[^\s]+\s+)*)*(vim|vi|micro|nvim|view|vimdiff)(?:\s+|$)"

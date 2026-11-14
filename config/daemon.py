@@ -19,25 +19,13 @@
 
 import os
 import atexit
-import sys
 import pathlib
-
-ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-CONFIG_DIR = ROOT_DIR / "config"
-if str(CONFIG_DIR) not in sys.path:
-    sys.path.insert(0, str(CONFIG_DIR))
-
 from config import variables as v
-
-with open(v.DAEMON_PID_PATH, "w") as f:
-    f.write(str(os.getpid()))
+v.DAEMON_PID_PATH.parent.mkdir(parents=True, exist_ok=True)
+v.DAEMON_PID_PATH.write_text(str(os.getpid()), encoding="utf-8")
 
 def remove_pid():
-    with open(v.DAEMON_PID_PATH, "w", encoding="utf-8") as f:
-        f.write("")
+    v.DAEMON_PID_PATH.write_text("", encoding="utf-8")
 atexit.register(remove_pid)
 
 
@@ -47,15 +35,6 @@ from watchdog.events import FileSystemEventHandler
 import cmd_parser
 from achievement_manager import manager as mgr
 
-ach = mgr.Achievement()
-def init_ram_dir():
-    for path_str in [v.PATH_LCMD, v.PATH_EDITOR]:
-        path_obj = pathlib.Path(path_str)
-        path_obj.parent.mkdir(parents=True, exist_ok=True)
-        if not path_obj.exists():
-            path_obj.touch()
-
-init_ram_dir()
 class FileChangeHandler(FileSystemEventHandler):
     def on_modified(self, event):
         abs_src = os.path.abspath(event.src_path)
@@ -65,12 +44,14 @@ class FileChangeHandler(FileSystemEventHandler):
                     new_cmd = f.read().strip()
                 if new_cmd:
                     v.cmd = new_cmd
-                    cmd_parser.parser.parse_list()
-                    current_trigger = (v.parsed[0], v.parsed[1])
-
-                    if not hasattr(v, "last_trigger") or v.last_trigger != current_trigger:
-                        v.last_trigger = current_trigger
-                        ach.update(v.parsed)
+                    code = cmd_parser.parser.parse_list()
+                    if code:
+                        v.min_len = 4 if len(v.parsed) > 1 and v.parsed[1] == "END" else 3
+                        if len(v.parsed) >= v.min_len:
+                            current_trigger = (v.parsed[0], v.parsed[1])
+                            if not hasattr(v, "last_trigger") or v.last_trigger != current_trigger:
+                                v.last_trigger = current_trigger
+                                mgr.achievement_manager.update(v.parsed)
 
 
             except FileNotFoundError:

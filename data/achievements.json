@@ -230,6 +230,13 @@
         "description": "Try to cheat an achievement",
         "diff": 4,
         "secret": false
+      },
+      "sh.recursion.la": {
+        "id": "sh.recursion.la",
+        "title": "Recursion!",
+        "description": "Run cli utility from the... cli utility!",
+        "diff": 3,
+        "secret": false
       }
 
 

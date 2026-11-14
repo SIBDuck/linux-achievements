@@ -110,10 +110,14 @@
         },
         "sh.repeater": {
             "id": "sh.repeater",
-            "done": false
+            "done": true
         },
         "sh.cheater": {
             "id": "sh.cheater",
+            "done": false
+        },
+        "sh.recursion.la": {
+            "id": "sh.recursion.la",
             "done": false
         }
     },

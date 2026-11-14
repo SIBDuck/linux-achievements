@@ -11,7 +11,7 @@
 # GNU Affero General Public License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <https://www.gnu.org/licenses/>.
+# along with this program. If not, see <https://gnu.org>.
 
 # ==============================================================================
 # WARNING & SECURITY NOTICE:
@@ -99,8 +99,8 @@ function _log_achievements_bash --on-event fish_postexec
     mkdir -p $_ACH_RAM_DIR 2>/dev/null
     set -l last_cmd (string trim "$argv")
 
-    # Log structure: [UNIX_TIMESTAMP] END [CLEANED_COMMAND] [EXIT_CODE]
-    printf "%s END %s %s\n" (date +%s) "$last_cmd" $exit_code > $_ACH_LOG_FILE 2>/dev/null
+    # Log structure: [UNIX_TIMESTAMP] END [EXIT_CODE] [CLEANED_COMMAND]
+    printf "%s END %s %s\n" (date +%s) $exit_code "$last_cmd" > $_ACH_LOG_FILE 2>/dev/null
 end
 
 # Hook 3: Fallback triggered when the terminal shell process exits during an active editing session
@@ -112,6 +112,6 @@ function _log_achievements_exit --on-event fish_exit
     mkdir -p $_ACH_RAM_DIR 2>/dev/null
 
     # Log the abrupt termination with a standard exit code 129 (SIGHUP)
-    printf "%s END %s 129\n" (date +%s) "$_CURRENT_RAW_CMD" > $_ACH_LOG_FILE 2>/dev/null
+    printf "%s END 129 %s\n" (date +%s) "$_CURRENT_RAW_CMD" > $_ACH_LOG_FILE 2>/dev/null
     set -g _ACH_EDITOR_ACTIVE 0
 end

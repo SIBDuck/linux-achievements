@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # CLI utility to control the daemon and player's progress
-
+# TODO: redirecting, add exit code mechanic (fucntion above main())
 import time
 import subprocess
 import pathlib
@@ -22,15 +22,19 @@ import re
 import sys
 import io
 import json
+import atexit
+from achievement_manager import manager as mgr
 import install_conf
 import variables as v
 import psutil
 import shlex
 
+
 # TODO: add redirecting
 class Parser:
     def __init__(self):
         pass
+
     def parse(self, log, native_only=False, is_cli=True):
         try:
             parts = shlex.split(log)
@@ -53,7 +57,7 @@ class Parser:
                     man(manual="daemon_man")
                     return
 
-                flag = args[0].lstrip("-").replace("-", "_")
+                flag = args[0].strip().replace("-", "_")
                 proc = daemon.find_daemon_process()
 
                 handlers = {
@@ -90,9 +94,9 @@ class Parser:
                 if not args:
                     man(manual="shell_man")
                     return
-                flag = args[0].lstrip("-").replace("-", "_")
+                flag = "".join(args)
                 handlers = {
-                    "u": shell_.using, "select": shell_.select_util,
+                    "-u": shell_.using, "--select": shell_.select_util,
                 }
                 if flag in handlers:
                     handlers[flag]()
@@ -104,8 +108,36 @@ class Parser:
                     else:
                         print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
 
+            case "dbg":
+                handlers = {"check": debugger.check_files}
+                flag = "".join(args)
+                if len(args) == 1 and args[0] in handlers:
+                    handlers[flag]()
+                    return
+                if flag != "":
+                    print(f"Unknown argument: '{flag}'", file=sys.stderr)
+                    return
+                man(manual="dbg_man")
+
             case "h" | "help" | "man":
-                man(manual="main")
+                handlers = ["daemon", "ach", "shell", "main", "dbg"]
+                manuals = args
+                if not manuals:
+                    man(manual="main")
+                    return
+                for index, manual in enumerate(manuals):
+                    if manual not in handlers:
+                        print(f"Uknown manual: '{manual}'", file=sys.stderr)
+                        continue
+                    if manual != "main":
+                        mn = manual + "_man"
+                        man(manual=mn)
+                        if index < len(manuals) - 1:
+                            print()
+                        continue
+                    man(manual="main")
+
+
             case "q" | "quit":
                 v.running = False
 
@@ -130,6 +162,60 @@ class Parser:
             case _:
                 print(f"Unknown command: '{cmd}'", file=sys.stderr)
 
+    # Function to parse redirecting
+    def parse_redirecting(self, log: str):
+        # Tokenize string
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            shell = data["shell"]
+            if shell is not None:
+                tokens = shlex.shlex(log, posix=True, punctuation_chars=True)
+                tokens.whitespace_split = True
+                tokens = list(tokens)
+                redirects = []
+                command_tokens = []
+                i = 0
+                OPERATORS = ("<", "<<", "<<<", ">", ">>")
+                while i < len(tokens):
+                    token = tokens[i]
+                    if token in OPERATORS:
+                        if tokens[i+1] in OPERATORS:
+                            raise SyntaxError(f"syntax error near unexpected token `{tokens[i+1]}'")
+
+                        if i+1 < len(tokens):
+                            if command_tokens and command_tokens[-1].isdigit():
+                                fd = command_tokens.pop()
+                            else:
+                                fd = "0" if token.startswith("<") else "1"
+                            target = tokens[i+1]
+                            redirects.append({
+                                "operator": token,
+                                "fd": fd,
+                                "target": target
+                            })
+                            i+=2
+                            continue
+                    else:
+                        raise SyntaxError("syntax error near unexpected token `newline'")
+                    command_tokens.append(token)
+                    i+=1
+                return redirects, command_tokens
+            print("""Shell is not selected. Select a shell before running shell commands \
+            with 'shell --select' or shell shell_name""", file=sys.stderr)
+            return None, None
+
+        except ValueError as e:
+            print(f"{e}", file=sys.stderr)
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+        return None, None
+    def redirecting_shell(self, log: str):
+        redirects, command_tokens = self.parse_redirecting(log)
+        if redirects is not None and command_tokens is not None:
+            tokens = shlex.shlex(log, posix=True, punctuation_chars=True)
+            tokens = list(tokens)
+
     # Function to parse bash commands (`:`)
     def parse_shell(self, log):
         # Get the command
@@ -151,7 +237,7 @@ class Parser:
                     if result.returncode != 0:
                         print(result.stderr.strip())
                     return
-                print("""Shell is not selected. Select a shell before running pipes or shell commands \
+                print("""Shell is not selected. Select a shell before running shell commands \
 with 'shell --select' or shell shell_name""", file=sys.stderr)
                 return
             except Exception as e:
@@ -173,12 +259,12 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
         for token in tokens:
             if token == "|":
                 if current_cmd:
-                    pipeline.append(" ".join(current_cmd))
+                    pipeline.append(shlex.join(current_cmd))
                     current_cmd = []
             else:
                 current_cmd.append(token)
         if current_cmd:
-            pipeline.append(" ".join(current_cmd))
+            pipeline.append(shlex.join(current_cmd))
 
         return pipeline
 
@@ -217,11 +303,11 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
                     # Feed the captured output string into the running Bash process via pipe
                     process.communicate(input=app_output_text)
                     return
-                print("""Shell is not selected. Select a shell before running pipes or shell commands \
+                print("""Shell is not selected. Select a shell before running shell commands \
                 with 'shell --select' or shell shell_name""", file=sys.stderr)
                 return
             except Exception as e:
-                print(f"{e}")
+                print(f"{e}", file=sys.stderr)
 
     def configs_installed(self):
         # Get player's data
@@ -236,7 +322,7 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
                 print(shell)
                 any_installed = True
         if not any_installed:
-            print("No configs installed. You can install using `install-config`")
+            print("No configs installed. You can install using `install-config`", file=sys.stderr)
 
     # Function to print info about configs
     def configs_all(self):
@@ -248,7 +334,6 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
         # Print info about every shell
         for shell in shell_data:
             print(f"Shell: {shell}. Installed: {shell_data[shell]}")  # configs[i] = True | False
-
 
 
 class Shell:
@@ -264,6 +349,7 @@ class Shell:
             return
         print(f"Shell is not selected. You can select it with 'shell --select' \
 or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
+
     def select_util(self):
         print("This script selects a shell for using shell commands")
         print("Type 'q' or 'quit' to quit")
@@ -296,6 +382,7 @@ or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
             except KeyboardInterrupt:
                 print("\nQuiting...")
                 return
+
     def select(self, shell):
         with open(v.DATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -325,13 +412,13 @@ or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
                 print("Shell is already reset", file=sys.stderr)
 
             case unknown:
-                print(f"Unknown shell typed: {unknown}", file=sys.stderr)
-
+                print(f"Unknown shell typed: '{unknown}'", file=sys.stderr)
 
 
 class Ach:
     def __init__(self):
         pass
+
     def all(self):
         print("Printing the list of entire achievements...")
         with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
@@ -348,7 +435,7 @@ class Ach:
 Title: {achievements[i]["title"]} 
 Description: {achievements[i]["description"]}
 Difficulty: {achievements[i]["diff"]}
-Done: {data["achievements"][i]["done"]}""")
+Done: {data["achievements"][i]["done"]}\n""")
 
     def locked(self):
         count_u = 0
@@ -368,7 +455,7 @@ Done: {data["achievements"][i]["done"]}""")
                 print(f"""Achievement: {achievements[i]["id"]}
 Title: {achievements[i]["title"]}")
 Description: {achievements[i]["description"]}
-Difficulty: {achievements[i]["diff"]}""")
+Difficulty: {achievements[i]["diff"]}\n""")
                 count_u += 1
 
         print(f"Total locked: {count_u}/{count}")
@@ -391,7 +478,7 @@ Difficulty: {achievements[i]["diff"]}""")
                 print(f"""Achievement: {achievements[i]["id"]}
 Title: {achievements[i]["title"]}")
 Description: {achievements[i]["description"]}
-Difficulty: {achievements[i]["diff"]}""")
+Difficulty: {achievements[i]["diff"]}\n""")
                 count_u += 1
         if count_u:
             print(f"Total unlocked: {count_u}/{count}")
@@ -417,12 +504,13 @@ Secret: {achs[achievement]["secret"]}\n""")
                     id_status[ach] = True
         for achievement in id_status:
             if not id_status[achievement]:
-                print(f"Could not find an achievement/flag: '{achievement}'", file=sys.stderr)
+                print(f"Could not find an achievement or flag: '{achievement}'", file=sys.stderr)
 
 
 class Daemon:
     def __init__(self):
         pass
+
     def find_daemon_process(self) -> psutil.Process | None:
         target = pathlib.Path(v.DAEMON_BIN_PATH).resolve()
         live, deleted = None, None
@@ -529,17 +617,20 @@ class Daemon:
         with open(v.PATH_DISABLED, "w"):
             pass
         print("[+] Logging disabled successfully")
+
     def enable_logging(self):
         if not os.path.exists(v.PATH_DISABLED):
             print("[+] Cannot enable logging: it is already enabled", file=sys.stderr)
             return
         v.PATH_DISABLED.unlink()
         print("[+] Logging enabled successfully")
+
     def logging_status(self):
         if os.path.exists(v.PATH_DISABLED):
-            print("[•] LOGGING STATUS: disabled")
+            print("[•] Status: disabled")
             return
-        print("[•] LOGGING STATUS: enabled")
+        print("[•] Status: enabled")
+
     def last_cmd(self):
         with open(v.PATH_LCMD, "r", encoding="utf-8") as log_file:
             logs = log_file.read().strip()
@@ -569,10 +660,52 @@ class Daemon:
 
         for i in logs:
             print(i.strip())
+
+class History:
+    def __init__(self):
+        pass
+    def _clear_cli(self) -> None:
+        _cli_history_fd.seek(0)
+        _cli_history_fd.truncate(0)
+        _cli_history_fd.flush()
+    def _clear_shell(self) -> None:
+        v.LASH_HISTORY_SHELL.write_text("", encoding="utf-8")
+
+    def clear(self, arg: str = "") -> None:
+        success = False
+        if not arg:
+            self._clear_shell()
+            self._clear_cli()
+        elif arg == "cli":
+            self._clear_cli()
+        elif arg == "shell":
+            self._clear_shell()
+        else:
+            print(f"Unknown argument: '{arg}'", file=sys.stderr)
+import run
+class Debugger:
+    def __init__(self):
+        pass
+    def check_files(self):
+        created = run.init_ram_dir()
+        if created:
+            print("[+] Missing files and folders created successfully")
+            return
+        print("[+] Everything is OK")
+
+class Profile:
+    def __init__(self):
+        pass
+    def profile(self):
+        pass
+
+
 parser = Parser()
 daemon = Daemon()
 ach = Ach()
 shell_ = Shell()
+history = History()
+debugger = Debugger()
 
 def fetch():
     print("""
@@ -591,52 +724,77 @@ Check my github: https://github.com/SIBDuck. Check repository: https://github.co
 Here you can check your achievements and track your progress.
 Type <h>, <help> or <man> for help, type <install-config> to install a shell script for logging commands''')
 
+
 def man(manual=None):
     manuals = {
         "daemon_man": """Possible actions with 'daemon':
-'daemon --start' - start the daemon
-'daemon --stop' - stop the daemon 
-'daemon --reboot' - reboot the daemon
-'daemon --status' - print the daemon status
-'daemon --logs' - print logs
-'daemon --rm-logs' - delete logs
-'daemon --enable' - enable logging
-'daemon --disable' - disable logging
-'daemon --last-cmd' - print the last command
-'daemon --logging-status' - print logging status
-'daemon --clear' - clear the last command log""",
+'daemon start' - start the daemon
+'daemon stop' - stop the daemon
+'daemon reboot' - reboot the daemon
+'daemon status' - print the daemon status
+'daemon logs' - print logs
+'daemon rm-logs' - delete logs
+'daemon enable' - enable logging
+'daemon disable' - disable logging
+'daemon last-cmd' - print the last command
+'daemon logging-status' - print logging status
+'daemon clear' - clear the last command log""",
 
         "ach_man": """Possible actions with 'ach':
-ach --all - print all achievements
-ach --locked - print locked achievements
-ach --unlocked - print opened achievements
-ach 'ID' - print info about an achievement (you do not have to use quotation marks, but you can)""",
+'ach --all' - print all achievements
+'ach --locked' - print locked achievements
+'ach --unlocked' - print opened achievements
+'ach "ID"' - print info about an achievement (quotation marks are unnecessary)""",
 
-        "shell_man": """Possible actions with 'shell':"
-shell -u - print a selected shell for using bash commands here
-shell --select - select a shell for using bash commands here (interactive utility)
-shell shell_name - select the shell for using bash commands here (bash, zsh and fish are supported)
-shell reset - reset the shell"""
+        "shell_man": """Possible actions with 'shell':
+'shell -u' - print a selected shell for using bash commands here
+'shell --select' - select a shell for using bash commands here (interactive utility)
+'shell shell_name' - select the shell for using bash commands here (bash, zsh and fish are supported)
+'shell reset' - reset the shell""",
+        "history_man": """Possible actions with 'history':
+'history -c <arguments>' - clears history of utility commands, arguments (unnecessary): shell|cli, if not arguments - clears the whole history)
+        """,
+        "dbg_man": """Possible actions with 'dbg':
+'dbg check' - check if files and folders needed for daemon working exist"""
     }
 
     man_all = f"""'help'/'h'/'man' - print this menu
-install-config' - install a shell script for logging commands
+'install-config' - install a shell script for logging commands
 'configs-installed' - print info about installed configs for the shells
 'configs-all' - print info about shells and configs for them
 {manuals["daemon_man"]}
 {manuals["ach_man"]}
 {manuals["shell_man"]}
+{manuals["dbg_man"]}
 'clear' - clear the screen
 'fetch' - print the welcome screen
 use ':' to use bash commands like in vim (pipes with utility-commands are supported)
 Hint: you could use 'more' and 'less' if you want to see a big list of something (e.g.: ach --all | more)
 'q'/'quit' - quit this program"""
-    if manual in manuals.keys():
+    if manual in manuals:
         print(manuals[manual])
         return
     print(man_all)
 
+def eprg(exit_code: int, is_cli=False):
+    if not is_cli:
+        sys.exit(exit_code)
 
+def wh(cmd: str, is_cli=False, clear_his=False):
+    if not cmd:
+        return
+    cmd = cmd.strip()
+    if not is_cli:
+        v.LASH_HISTORY_SHELL.touch(exist_ok=True)
+        if not clear_his:
+            with open(v.LASH_HISTORY_SHELL, "a", encoding="utf-8") as f:
+                f.write(f"{cmd}\n")
+        return
+    if not clear_his:
+        _cli_history_fd.write(f"{cmd}\n")
+
+v.LASH_HISTORY_CLI.touch(exist_ok=True)
+_cli_history_fd = v.LASH_HISTORY_CLI.open("a", encoding="utf-8", buffering=1)
 def main():
     if "TERM" not in os.environ or not os.environ["TERM"]:
         os.environ["TERM"] = "xterm-256color"
@@ -647,10 +805,12 @@ def main():
         try:
             inp = input("> ")
             parser.parse(inp)
+            mgr.achievement_manager.cli_achs(inp)
+            wh(inp, is_cli=True)
         except KeyboardInterrupt:
             break
     print("\nGoodbye...")
 
-
 if __name__ == "__main__":
     main()
+atexit.register(_cli_history_fd.close)
