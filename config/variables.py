@@ -26,7 +26,7 @@ running = True
 CURRENT_SHELL = None
 record = True
 min_len = None
-
+ec = None
 # Paths
 # Shells
 BASH_BINARY_PATH = pathlib.Path("/usr/bin/bash")

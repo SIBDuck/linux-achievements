@@ -28,14 +28,12 @@ if str(ROOT_DIR) not in sys.path:
 from config_shrc import installer_shell
 
 class Installer:
-    @staticmethod
-    def install_config_shell(shell):
-        installer_shell.add_to_path(shell)
-
-
-        return
-    @staticmethod
-    def install_config():
+    def __init__(self):
+        pass
+    def install_config_shell(self, shell):
+        ec = installer_shell.add_to_path(shell)
+        return ec
+    def install_config(self):
         print("""This script installs the shell script for logging commands""")
         print("""Type 'q' or 'quit' to quit""")
         while True:
@@ -49,10 +47,10 @@ class Installer:
                         inp1 = input(f"Are you sure you want to install the config for {shell}? [Y/n] (install-config)> ")
                         match inp1.lower():
                             case "" | "y" | "yes":
-                                Installer.install_config_shell(shell)
+                                ec = installer.install_config_shell(shell)
                                 print("\nQuiting installing mode...")
 
-                                return
+                                return ec
                             case "n" | "no":
                                 continue
                             case unknown_status:
@@ -61,5 +59,6 @@ class Installer:
                         print(f"Unknown action: '{unknown_status}'")
             except KeyboardInterrupt:
                 print("\nQuiting installing mode...")
-                return
+                return 0
 
+installer = Installer()

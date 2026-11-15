@@ -38,23 +38,23 @@ class Parser:
         try:
             parts = shlex.split(log)
             if not parts:
-                return
+                return 0
         except ValueError as e:
             print(f"{e}")
-            return
+            return 130
 
         cmd = parts[0]
         args = parts[1:]
         if not native_only and is_cli:
             rlog = re.search(v.PIPE_PATTERN, log)
             if rlog is not None:
-                self.parse_pipe(log)
-                return
+                ec = self.parse_pipe(log)
+                return ec
         match cmd:
             case "daemon":
                 if not args:
                     man(manual="daemon_man")
-                    return
+                    return 2
 
                 flag = args[0].strip().replace("-", "_")
                 proc = daemon.find_daemon_process()
@@ -69,12 +69,13 @@ class Parser:
                 }
                 if flag not in handlers:
                     print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
-                    return
-                handlers[flag]()
+                    return 2
+                ec = handlers[flag]()
+                return ec
             case "ach":
                 if not args:
                     man(manual="ach_man")
-                    return
+                    return 2
                 flag = args[0].lstrip("-").replace("-", "_")
                 handlers = {
                     "all": ach.all, "locked": ach.locked,
@@ -82,51 +83,58 @@ class Parser:
                 }
                 ach_id_pattern = re.match(v.ACH_ID_PATTERN, log)
                 if flag in handlers:
-                    handlers[flag]()
+                    ec = handlers[flag]()
                 elif ach_id_pattern:
                     achievements = ach_id_pattern.group(1)
                     achievements = shlex.split(achievements)
-                    ach.achid(achievements)
+                    ec = ach.achid(achievements)
                 else:
                     print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
+                    return 2
+                return ec
             case "shell":
                 if not args:
                     man(manual="shell_man")
-                    return
+                    return 2
                 flag = "".join(args)
                 handlers = {
                     "-u": shell_.using, "--select": shell_.select_util,
                 }
                 if flag in handlers:
-                    handlers[flag]()
+                    ec = handlers[flag]()
                 else:
                     shell_pattern = re.search(v.SHELL_SELECT_PATTERN, log)
                     if shell_pattern:
                         shell = shell_pattern.group(1)
-                        shell_.select(shell)
+                        ec = shell_.select(shell)
                     else:
                         print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
+                        return 2
+                return ec
 
             case "dbg":
                 handlers = {"check": debugger.check_files}
-                flag = "".join(args)
+                flag = args[0]
                 if len(args) == 1 and args[0] in handlers:
-                    handlers[flag]()
-                    return
+                    ec = handlers[flag]()
+                    return ec
                 if flag != "":
                     print(f"Unknown argument: '{flag}'", file=sys.stderr)
-                    return
+                    return 2
                 man(manual="dbg_man")
+                return 2
 
             case "h" | "help" | "man":
                 handlers = ["daemon", "ach", "shell", "main", "dbg"]
                 manuals = args
+                has_error = False
                 if not manuals:
                     man(manual="main")
-                    return
+                    return 0
                 for index, manual in enumerate(manuals):
                     if manual not in handlers:
                         print(f"Uknown manual: '{manual}'", file=sys.stderr)
+                        has_error = True
                         continue
                     if manual != "main":
                         mn = manual + "_man"
@@ -135,110 +143,70 @@ class Parser:
                             print()
                         continue
                     man(manual="main")
+                return 0 if not has_error else 1
 
             case "q" | "quit":
                 v.running = False
+                return 0
 
             case "clear":
                 subprocess.run(["clear"], stderr=subprocess.DEVNULL)
+                return 0
 
             case "install-config":
-                install_conf.Installer.install_config()
+                ec = install_conf.installer.install_config()
+                return ec
             case "configs-all":
-                self.configs_all()
+                ec = self.configs_all()
+                return ec
 
             case "installed-configs":
-                self.configs_installed()
+                ec = self.configs_installed()
+                return ec
                 # Welcome screen
             case "fetch":
                 fetch()
+                return 0
             case str() if cmd.startswith(":"):
                 rlog = re.match(v.BASH_PATTERN, log)
                 if rlog is not None:
-                    self.parse_shell(rlog)
-                    return
+                    ec = self.parse_shell(rlog)
+                    return ec
             case _:
                 print(f"Unknown command: '{cmd}'", file=sys.stderr)
-
-    # Function to parse redirecting
-    def parse_redirecting(self, log: str):
-        # Tokenize string
-        try:
-            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            shell = data["shell"]
-            if shell is not None:
-                tokens = shlex.shlex(log, posix=True, punctuation_chars=True)
-                tokens.whitespace_split = True
-                tokens = list(tokens)
-                redirects = []
-                command_tokens = []
-                i = 0
-                OPERATORS = ("<", "<<", "<<<", ">", ">>")
-                while i < len(tokens):
-                    token = tokens[i]
-                    if token in OPERATORS:
-                        if tokens[i+1] in OPERATORS:
-                            raise SyntaxError(f"syntax error near unexpected token `{tokens[i+1]}'")
-
-                        if i+1 < len(tokens):
-                            if command_tokens and command_tokens[-1].isdigit():
-                                fd = command_tokens.pop()
-                            else:
-                                fd = "0" if token.startswith("<") else "1"
-                            target = tokens[i+1]
-                            redirects.append({
-                                "operator": token,
-                                "fd": fd,
-                                "target": target
-                            })
-                            i+=2
-                            continue
-                    else:
-                        raise SyntaxError("syntax error near unexpected token `newline'")
-                    redirects.append([token])
-                    i+=1
-                return redirects
-            print("""Shell is not selected. Select a shell before running shell commands \
-            with 'shell --select' or shell shell_name""", file=sys.stderr)
-            return None
-
-        except ValueError as e:
-            print(f"{e}", file=sys.stderr)
-        except Exception as e:
-            print(f"{e}", file=sys.stderr)
-        return None
-    def redirecting_shell(self, log: str):
-        redirects = self.parse_redirecting(log)
-
-
+                return 2
 
     # Function to parse bash commands (`:`)
     def parse_shell(self, log):
         # Get the command
-        bash_command = log.group(1)
-        if bash_command:
-            try:
-                with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                shell = data["shell"]
-                if shell is not None:
-                    # Executing
-                    result = subprocess.run(
-                        bash_command,
-                        shell=True,
-                        executable=shell,
-                        text=True
-                    )
-                    # Printing an error if it is necessary
-                    if result.returncode != 0:
-                        print(result.stderr.strip())
-                    return
-                print("""Shell is not selected. Select a shell before running shell commands \
+        shell_command = log.group(1)
+        if shell_command is None:
+            return 0
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            shell = data["shell"]
+
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
+
+        if shell is None:
+            print("""Shell is not selected. Select a shell before running shell commands \
 with 'shell --select' or shell shell_name""", file=sys.stderr)
-                return
-            except Exception as e:
-                print(f"{e}")
+            return 1
+        try:
+             # Executing
+            result = subprocess.run(
+                shell_command,
+                shell=True,
+                executable=shell,
+                text=True
+                )
+            return result.returncode
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     # Function to parse pipes
     def parse_pipeline(self, log: str):
@@ -267,52 +235,66 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
 
     def parse_pipe(self, log):
         pipeline = self.parse_pipeline(log)
-        if pipeline:
-            # Native part
-            native_part = pipeline[0]
-            # Bash part
-            pipe_part = pipeline[1:]
-            # Intercept the stdout to RAM buffer to transfer the first command output to bash pipe
-            captured_output = io.StringIO()
-            old_stdout = sys.stdout
-            sys.stdout = captured_output
-            try:
-                # Parse native part
-                self.parse(native_part, native_only=True)
-            finally:
-                # Restore the stdout back to the system terminal
-                sys.stdout = old_stdout
-            # Extract the captured text from the RAM buffer to feed it into the Bash pipe
-            app_output_text = captured_output.getvalue()
-            try:
-                with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                shell = data["shell"]
-                if shell is not None:
-                    # Execute the target Bash command with redirected standard input (stdin)
-                    process = subprocess.Popen(
-                        pipe_part,
-                        shell=True,
-                        executable=shell,
-                        stdin=subprocess.PIPE,
-                        text=True
-                    )
-                    # Feed the captured output string into the running Bash process via pipe
-                    process.communicate(input=app_output_text)
-                    return
-                print("""Shell is not selected. Select a shell before running shell commands \
-                with 'shell --select' or shell shell_name""", file=sys.stderr)
-                return
-            except Exception as e:
-                print(f"{e}", file=sys.stderr)
+        if not pipeline:
+            return 0
+        # Native part
+        native_part = pipeline[0]
+        # Bash part
+        pipe_part = pipeline[1:]
+         # Intercept the stdout to RAM buffer to transfer the first command output to bash pipe
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        try:
+            # Parse native part
+            self.parse(native_part, native_only=True)
+        finally:
+            # Restore the stdout back to the system terminal
+            sys.stdout = old_stdout
+        # Extract the captured text from the RAM buffer to feed it into the Bash pipe
+        app_output_text = captured_output.getvalue()
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            shell = data["shell"]
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
+
+        if shell is None:
+            print("""Shell is not selected. Select a shell before running shell commands \
+with 'shell --select' or shell shell_name""", file=sys.stderr)
+            return 1
+        try:
+            # Execute the target Bash command with redirected standard input (stdin)
+            process = subprocess.Popen(
+                pipe_part,
+                shell=True,
+                executable=shell,
+                stdin=subprocess.PIPE,
+                text=True
+                )
+            # Feed the captured output string into the running Bash process via pipe
+            process.communicate(input=app_output_text)
+            return process.returncode
+        except BrokenPipeError as e:
+            print(f"{e}", file=sys.stderr)
+            return 141
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def configs_installed(self):
         # Get player's data
-        with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # Get shell data
-        shell_data = data["configs_installed"]
-        # Print info about installed configs
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Get shell data
+            shell_data = data["configs_installed"]
+            # Print info about installed configs
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
         any_installed = False
         for shell in shell_data:
             if shell_data[shell]:
@@ -320,17 +302,24 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
                 any_installed = True
         if not any_installed:
             print("No configs installed. You can install using `install-config`", file=sys.stderr)
+            return 1
+        return 0
 
     # Function to print info about configs
     def configs_all(self):
         # Get player's data
-        with open(v.DATA_PATH, "r", encoding='utf-8') as f:
-            data = json.load(f)
-        # Get shell data
-        shell_data = data["configs_installed"]
+        try:
+            with open(v.DATA_PATH, "r", encoding='utf-8') as f:
+                data = json.load(f)
+            # Get shell data
+            shell_data = data["configs_installed"]
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
         # Print info about every shell
         for shell in shell_data:
             print(f"Shell: {shell}. Installed: {shell_data[shell]}")  # configs[i] = True | False
+        return 0
 
 
 class Shell:
@@ -338,14 +327,20 @@ class Shell:
         pass
 
     def using(self):
-        with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if data["shell"] is not None:
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data["shell"] is None:
+                print(f"Shell is not selected. You can select it with 'shell --select' \
+            or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
+                return 1
             shell_path = pathlib.Path(data["shell"])
             print(f"{shell_path.name} ({shell_path})")
-            return
-        print(f"Shell is not selected. You can select it with 'shell --select' \
-or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
+
 
     def select_util(self):
         print("This script selects a shell for using shell commands")
@@ -370,46 +365,54 @@ or 'shell shell_name' (bash, zsh, fish are supported)", file=sys.stderr)
                             with open(v.DATA_PATH, "w", encoding="utf-8") as f:
                                 json.dump(data, f, ensure_ascii=False, indent=4)
                             print(f"{shell.capitalize()} successfully selected as a default shell.")
-                            return
+                            return 0
                     case "q" | "quit":
                         print("\nQuiting...")
-                        return
+                        return 0
                     case unknown:
                         print(f"Unknown shell typed: {unknown}", file=sys.stderr)
+
+
             except KeyboardInterrupt:
                 print("\nQuiting...")
-                return
+                return 0
+            except Exception as e:
+                print(f"{e}", file=sys.stderr)
+                return 1
 
     def select(self, shell):
-        with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        match shell:
-            case "bash" | "zsh" | "fish":
-                if shell == "bash":
-                    v.CURRENT_SHELL = v.BASH_BINARY_PATH
-                elif shell == "zsh":
-                    v.CURRENT_SHELL = v.ZSH_BINARY_PATH
-                else:
-                    v.CURRENT_SHELL = v.FISH_BINARY_PATH
-                current_shell = str(v.CURRENT_SHELL)
-                if current_shell != data["shell"]:
-                    data["shell"] = current_shell
-                    with open(v.DATA_PATH, "w", encoding="utf-8") as f:
-                        json.dump(data, f, ensure_ascii=False, indent=4)
-                    print(f"{shell.capitalize()} successfully selected as a default shell")
-                    return
-                print(f"You already use {shell} as a default shell", file=sys.stderr)
-            case "reset":
-                if data["shell"] is not None:
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            match shell:
+                case "bash" | "zsh" | "fish":
+                    if shell == "bash":
+                        v.CURRENT_SHELL = v.BASH_BINARY_PATH
+                    elif shell == "zsh":
+                        v.CURRENT_SHELL = v.ZSH_BINARY_PATH
+                    else:
+                        v.CURRENT_SHELL = v.FISH_BINARY_PATH
+                    current_shell = str(v.CURRENT_SHELL)
+                    if current_shell != data["shell"]:
+                        data["shell"] = current_shell
+                        with open(v.DATA_PATH, "w", encoding="utf-8") as f:
+                            json.dump(data, f, ensure_ascii=False, indent=4)
+                        print(f"{shell.capitalize()} successfully selected as a default shell")
+                        return 0
+                    print(f"You already use {shell} as a default shell", file=sys.stderr)
+                    return 0
+                case "reset":
                     data["shell"] = None
                     with open(v.DATA_PATH, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=4)
                     print("Shell reset successfully")
-                    return
-                print("Shell is already reset", file=sys.stderr)
-
-            case unknown:
-                print(f"Unknown shell typed: '{unknown}'", file=sys.stderr)
+                    return 0
+                case unknown:
+                    print(f"Unknown shell typed: '{unknown}'", file=sys.stderr)
+                    return 1
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
 
 class Ach:
@@ -417,91 +420,121 @@ class Ach:
         pass
 
     def all(self):
-        print("Printing the list of entire achievements...")
-        with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
-            achs = json.load(f)
+        try:
+            count = 0
+            print("Printing the list of entire achievements...")
+            with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
+                achs = json.load(f)
 
-        with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-        achievements = achs
+            achievements = achs
 
-        for i in achievements:
-            if not achievements[i]["secret"]:
-                print(f"""Achievement: {achievements[i]["id"]}
+            for i in achievements:
+                count += 1
+                if not achievements[i]["secret"] or achievements[i]["secret"] and achievements[i]["done"]:
+                    print(f"""Achievement: {achievements[i]["id"]}
 Title: {achievements[i]["title"]} 
 Description: {achievements[i]["description"]}
 Difficulty: {achievements[i]["diff"]}
 Done: {data["achievements"][i]["done"]}\n""")
+                elif achievements[i]["secret"] and not achievements[i]["done"]:
+                    print(f"""Achievement: {"*"*len(achievements[i]["id"])}
+Title: {achievements[i]["title"]}
+Description: ********
+Difficulty: {achievements[i]["diff"]}
+Done: {data["achievements"][i]["done"]}\n""")
+            print(f"Total: {count}")
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def locked(self):
-        count_u = 0
-        count = 0
-        print("Printing the list of locked achievements...")
-        with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
-            achs = json.load(f)
+        try:
+            count_u = 0
+            count = 0
+            print("Printing the list of locked achievements...")
+            with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
+                achs = json.load(f)
 
-        with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-        achievements = achs
+            achievements = achs
 
-        for i in achievements:
-            count += 1
-            if not data["achievements"][i]["done"]:
-                print(f"""Achievement: {achievements[i]["id"]}
+            for i in achievements:
+                count += 1
+                if not data["achievements"][i]["done"]:
+                    print(f"""Achievement: {achievements[i]["id"]}
 Title: {achievements[i]["title"]}")
 Description: {achievements[i]["description"]}
 Difficulty: {achievements[i]["diff"]}\n""")
-                count_u += 1
+                    count_u += 1
 
-        print(f"Total locked: {count_u}/{count}")
+            print(f"Total locked: {count_u}/{count}")
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def unlocked(self):
-        count_u = 0
-        count = 0
-        print("Printing the list of unlocked achievements...")
-        with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
-            achs = json.load(f)
+        try:
+            count_u = 0
+            count = 0
+            print("Printing the list of unlocked achievements...")
+            with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
+                achs = json.load(f)
 
-        with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-        achievements = achs
+            achievements = achs
 
-        for i in achievements:
-            count += 1
-            if data["achievements"][i]["done"]:
-                print(f"""Achievement: {achievements[i]["id"]}
+            for i in achievements:
+                count += 1
+                if data["achievements"][i]["done"]:
+                    print(f"""Achievement: {achievements[i]["id"]}
 Title: {achievements[i]["title"]}")
 Description: {achievements[i]["description"]}
 Difficulty: {achievements[i]["diff"]}\n""")
-                count_u += 1
-        if count_u:
-            print(f"Total unlocked: {count_u}/{count}")
-            return
-        print("It seems you have not unlocked any achievements yet", file=sys.stderr)
+                    count_u += 1
+            if count_u:
+                print(f"Total unlocked: {count_u}/{count}")
+            print("It seems you have not unlocked any achievements yet")
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def achid(self, id: list):
-        with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
-            achs = json.load(f)
-        id_status = dict.fromkeys(id, False)
-        with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        achievements = achs
-        for achievement in achievements:
-            for ach in id:
-                if achievement == ach:
-                    print(f"""Achievement: {achievements[achievement]["id"]}
+        ec = 0
+        try:
+            with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
+                achs = json.load(f)
+            id_status = dict.fromkeys(id, False)
+            with open(v.DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            achievements = achs
+            for achievement in achievements:
+                for ach in id:
+                    if achievement == ach:
+                        print(f"""Achievement: {achievements[achievement]["id"]}
 Title: {achievements[achievement]["title"]}
 Description: {achievements[achievement]["description"]}
 Difficulty: {achievements[achievement]["diff"]}
 Unlocked: {data["achievements"][achievement]["done"]}
 Secret: {achs[achievement]["secret"]}\n""")
-                    id_status[ach] = True
-        for achievement in id_status:
-            if not id_status[achievement]:
-                print(f"Could not find an achievement or flag: '{achievement}'", file=sys.stderr)
+                        id_status[ach] = True
+            for achievement in id_status:
+                if not id_status[achievement]:
+                    print(f"Could not find an achievement or flag: '{achievement}'", file=sys.stderr)
+                    ec = 1
+            return ec
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
 
 class Daemon:
@@ -536,30 +569,34 @@ class Daemon:
         if proc is None:
             self.write_pid(None)
             print("Unavailable to terminate: it is not running", file=sys.stderr)
-            return
+            return 1
         print(f"Stopping daemon (PID: {proc.pid})...")
         try:
             proc.terminate()
             proc.wait(timeout=5)
             print("[+] Daemon successfully terminated.")
+            ec = 0
         except psutil.TimeoutExpired:
-            print("[!] Terminating is taking too long. Killing forcibly...", file=sys.stderr)
+            print("[!] Terminating is taking too long. Killing forcibly...")
             try:
                 proc.kill()
                 proc.wait()
             except psutil.NoSuchProcess:
                 pass
             print("[+] Daemon successfully terminated.")
+            ec = 0
         except psutil.NoSuchProcess:
-            print("[-] Process is already terminated.")
+            print("[-] Process is already terminated.", file=sys.stderr)
             self.write_pid(None)
+            ec = 1
         except psutil.AccessDenied:
             print("[!] Access denied: cannot terminate the daemon (not enough privileges?)", file=sys.stderr)
-            return
+            ec = 1
         except Exception as e:
             print(f"[!] Unexpected error while stopping daemon: {e}", file=sys.stderr)
-            return
+            ec = 1
         self.write_pid(None)
+        return ec
 
     def start(self, reboot=False):
         proc = self.find_daemon_process()
@@ -582,16 +619,20 @@ class Daemon:
                 print(f"[+] Daemon successfully started in background (PID: {proc.pid}).")
             else:
                 print(f"[+] Daemon successfully rebooted and started in background (PID: {proc.pid}).")
+            return 0
         except FileNotFoundError:
             print(f"[!] Error: Binary file not found at {v.DAEMON_BIN_PATH}", file=sys.stderr)
+            return 1
         except Exception as e:
             prefix = "rebooting daemon" if reboot else "starting daemon"
             print(f"[!] Unexpected error while {prefix}: {e}", file=sys.stderr)
+            return 1
 
     def reboot(self):
         proc = self.find_daemon_process()
-        self.stop(proc)
-        self.start(reboot=True)
+        ec0 = self.stop(proc)
+        ec1 = self.start(reboot=True)
+        return 0 if (ec0 == 0 and ec1 == 0) else 1
 
     def write_pid(self, pid):
         if pid is None:
@@ -602,61 +643,80 @@ class Daemon:
     def status(self, proc: psutil.Process | None):
         if proc is not None:
             print(f"[•] Status: RUNNING (PID: {proc.pid})")
-            return
+            return 0
         print("[•] Status: STOPPED (daemon is not running)")
         self.write_pid(None)
+        return 0
 
     def disable_logging(self):
         if os.path.exists(v.PATH_DISABLED):
             print("[-] Cannot disable logging: it is already disabled", file=sys.stderr)
-            return
+            return 1
         os.makedirs(os.path.dirname(os.path.abspath(v.PATH_DISABLED)), exist_ok=True)
         with open(v.PATH_DISABLED, "w"):
             pass
         print("[+] Logging disabled successfully")
+        return 0
 
     def enable_logging(self):
         if not os.path.exists(v.PATH_DISABLED):
             print("[+] Cannot enable logging: it is already enabled", file=sys.stderr)
-            return
+            return 1
         v.PATH_DISABLED.unlink()
         print("[+] Logging enabled successfully")
+        return 0
 
     def logging_status(self):
         if os.path.exists(v.PATH_DISABLED):
             print("[•] Status: disabled")
-            return
-        print("[•] Status: enabled")
+        else: print("[•] Status: enabled")
+        return 0
 
     def last_cmd(self):
-        with open(v.PATH_LCMD, "r", encoding="utf-8") as log_file:
-            logs = log_file.read().strip()
-        print(logs)
+        try:
+            with open(v.PATH_LCMD, "r", encoding="utf-8") as log_file:
+                logs = log_file.read().strip()
+            print(logs)
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def rm_logs(self):
-        with open(v.LOG_FILE_PATH, "w", encoding='utf-8') as logs:
-            logs.write("")
-        print("Successfully cleared the log file")
+        try:
+            with open(v.LOG_FILE_PATH, "w", encoding='utf-8') as logs:
+                logs.write("")
+            print("Successfully cleared the log file")
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def clear_cmd(self):
-        with open(v.PATH_LCMD, "w") as f:
-            f.write("")
-        print("Successfully cleared!")
+        try:
+            with open(v.PATH_LCMD, "w") as f:
+                f.write("")
+            print("Successfully cleared!")
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
     def logs(self):
         try:
             if os.path.getsize(v.LOG_FILE_PATH) == 0:
-                print("The file is empty", file=sys.stderr)
-                return
-        except FileNotFoundError:
-            # Touch the file if it does not exist
-            pathlib.Path(v.LOG_FILE_PATH).touch()
-            print("The file did not exist, but has been touched", file=sys.stderr)
-        with open(v.LOG_FILE_PATH, "r", encoding='utf-8') as f:
-            logs = f.readlines()
+                print("The file is empty")
+                return 0
+            with open(v.LOG_FILE_PATH, "r", encoding='utf-8') as f:
+                logs = f.readlines()
+            for i in logs:
+                print(i.strip())
+            return 0
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
 
-        for i in logs:
-            print(i.strip())
+
 
 class History:
     def __init__(self):
@@ -686,8 +746,9 @@ class Debugger:
         created = init_ram_dir()
         if created:
             print("[+] Missing files and folders created successfully")
-            return
+            return 0
         print("[+] Everything is OK")
+        return 0
 
 class Profile:
     def __init__(self):
@@ -803,19 +864,28 @@ _cli_history_fd = v.LASH_HISTORY_CLI.open("a", encoding="utf-8", buffering=1)
 def main():
     if "TERM" not in os.environ or not os.environ["TERM"]:
         os.environ["TERM"] = "xterm-256color"
-
+    last_ec = 0
     fetch()
 
     while v.running:
         try:
             inp = input("> ")
-            parser.parse(inp)
+            if not inp.strip(): continue
+            if inp.strip() in ("q", "quit"):
+                break
+            last_ec = parser.parse(inp)
             mgr.achievement_manager.cli_achs(inp)
             wh(inp, is_cli=True)
         except KeyboardInterrupt:
-            break
+            print()
+            return 130
+        except EOFError:
+            return 0
+        except Exception as e:
+            return 0
     print("\nGoodbye...")
+    atexit.register(_cli_history_fd.close)
+    return last_ec
 
 if __name__ == "__main__":
-    main()
-atexit.register(_cli_history_fd.close)
+    sys.exit(main())
