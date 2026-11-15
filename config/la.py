@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # CLI utility to control the daemon and player's progress
-# TODO: fix the bug: "Profile error: 'stats' in 'player_data.json' must be a dictionary" when 'prf profile' is typed
 import time
 import subprocess
 import pathlib
@@ -31,6 +30,7 @@ import shlex
 import pwd
 # NOTE: redirecting will not be implemented in this project until
 # lash (Linux Achievements SHell) is completed
+# TODO: fix the bug: "Profile error: 'stats' in 'player_data.json' must be a dictionary" when 'prf profile' is typed
 class Parser:
     def __init__(self):
         pass
