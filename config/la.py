@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # CLI utility to control the daemon and player's progress
-# TODO: redirecting, add exit code mechanic (fucntion above main())
+# TODO: fix the bug: "Profile error: 'stats' in 'player_data.json' must be a dictionary" when 'prf profile' is typed
 import time
 import subprocess
 import pathlib
@@ -28,8 +28,9 @@ import install_conf
 import variables as v
 import psutil
 import shlex
-
-# TODO: add redirecting
+import pwd
+# NOTE: redirecting will not be implemented in this project until
+# lash (Linux Achievements SHell) is completed
 class Parser:
     def __init__(self):
         pass
@@ -99,6 +100,7 @@ class Parser:
                 flag = "".join(args)
                 handlers = {
                     "-u": shell_.using, "--select": shell_.select_util,
+                    "configs-installed": shell_.configs_installed, "configs-all": shell_.configs_all
                 }
                 if flag in handlers:
                     ec = handlers[flag]()
@@ -111,7 +113,19 @@ class Parser:
                         print(f"Unknown flag: '{args[0]}'", file=sys.stderr)
                         return 2
                 return ec
-
+            case "prf":
+                handlers = {
+                    "profile": profile.profile
+                }
+                flag = args[0]
+                if not flag:
+                    man(manual="prf_man")
+                    return 2
+                if flag in args:
+                    ec = handlers[flag]()
+                    return ec
+                print(f"Unknown flag: '{flag}'", file=sys.stderr)
+                return 2
             case "dbg":
                 handlers = {"check": debugger.check_files}
                 flag = args[0]
@@ -155,13 +169,6 @@ class Parser:
 
             case "install-config":
                 ec = install_conf.installer.install_config()
-                return ec
-            case "configs-all":
-                ec = self.configs_all()
-                return ec
-
-            case "installed-configs":
-                ec = self.configs_installed()
                 return ec
                 # Welcome screen
             case "fetch":
@@ -284,43 +291,6 @@ with 'shell --select' or shell shell_name""", file=sys.stderr)
             print(f"{e}", file=sys.stderr)
             return 1
 
-    def configs_installed(self):
-        # Get player's data
-        try:
-            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # Get shell data
-            shell_data = data["configs_installed"]
-            # Print info about installed configs
-        except Exception as e:
-            print(f"Config error: {e}", file=sys.stderr)
-            return 1
-        any_installed = False
-        for shell in shell_data:
-            if shell_data[shell]:
-                print(shell)
-                any_installed = True
-        if not any_installed:
-            print("No configs installed. You can install using `install-config`", file=sys.stderr)
-            return 1
-        return 0
-
-    # Function to print info about configs
-    def configs_all(self):
-        # Get player's data
-        try:
-            with open(v.DATA_PATH, "r", encoding='utf-8') as f:
-                data = json.load(f)
-            # Get shell data
-            shell_data = data["configs_installed"]
-        except Exception as e:
-            print(f"Config error: {e}", file=sys.stderr)
-            return 1
-        # Print info about every shell
-        for shell in shell_data:
-            print(f"Shell: {shell}. Installed: {shell_data[shell]}")  # configs[i] = True | False
-        return 0
-
 
 class Shell:
     def __init__(self):
@@ -414,7 +384,44 @@ class Shell:
             print(f"{e}", file=sys.stderr)
             return 1
 
+    def configs_installed(self, ec_to_return=True):
 
+        # Get player's data
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Get shell data
+            shell_data = data["configs_installed"]
+            # Print info about installed configs
+
+            any_installed = False
+            for shell in shell_data:
+                if shell_data[shell]:
+                    print(shell)
+                    any_installed = True
+            if not any_installed:
+                print("No configs installed. You can install using `install-config`", file=sys.stderr)
+                return 1
+            return 0
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
+
+    # Function to print info about configs
+    def configs_all(self):
+        # Get player's data
+        try:
+            with open(v.DATA_PATH, "r", encoding='utf-8') as f:
+                data = json.load(f)
+            # Get shell data
+            shell_data = data["configs_installed"]
+        except Exception as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
+        # Print info about every shell
+        for shell in shell_data:
+            print(f"Shell: {shell}. Installed: {shell_data[shell]}")  # configs[i] = True | False
+        return 0
 class Ach:
     def __init__(self):
         pass
@@ -479,11 +486,12 @@ Difficulty: {achievements[i]["diff"]}\n""")
             print(f"{e}", file=sys.stderr)
             return 1
 
-    def unlocked(self):
+    def unlocked(self, ec_to_return=True):
         try:
             count_u = 0
             count = 0
-            print("Printing the list of unlocked achievements...")
+            if ec_to_return:
+                print("Printing the list of unlocked achievements...")
             with open(v.ACHIEVEMENT_PATH, "r", encoding='utf-8') as f:
                 achs = json.load(f)
 
@@ -495,10 +503,11 @@ Difficulty: {achievements[i]["diff"]}\n""")
             for i in achievements:
                 count += 1
                 if data["achievements"][i]["done"]:
-                    print(f"""Achievement: {achievements[i]["id"]}
-Title: {achievements[i]["title"]}")
-Description: {achievements[i]["description"]}
-Difficulty: {achievements[i]["diff"]}\n""")
+                    if ec_to_return:
+                        print(f"""Achievement: {achievements[i]["id"]}
+    Title: {achievements[i]["title"]}")
+    Description: {achievements[i]["description"]}
+    Difficulty: {achievements[i]["diff"]}\n""")
                     count_u += 1
             if count_u:
                 print(f"Total unlocked: {count_u}/{count}")
@@ -754,7 +763,39 @@ class Profile:
     def __init__(self):
         pass
     def profile(self):
-        pass
+        try:
+            data = self.get_stats()
+            if isinstance(data, int):
+                print("Something went wrong while getting player data")
+                return 1
+            if type(data.get("stats")) is dict:
+                stats = data.get("stats")
+                username = os.getenv("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name
+                print(f"Current User: {username}")
+                xp = data["stats"]["xp"]
+                print(f"XP: {xp}")
+                print(f"Current time spend in vim: {stats["time"]["vim"]}")
+                ec0 = ach.unlocked(ec_to_return=False)
+                ec1 = shell_.configs_installed(ec_to_return=False)
+                if ec0 == 0 and ec1 == 0:
+                    return 0
+                if ec1 != 0 or ec0 != 0:
+                    print("Something went wrong while getting unlocked achievements and installed configs")
+                    return 1
+            print("Profile error: 'stats' in 'player_data.json' must be a dictionary")
+            return 1
+
+        except Exception as e:
+            print(f"{e}", file=sys.stderr)
+            return 1
+    def get_stats(self):
+        try:
+            with open(v.DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            stats = data["stats"]
+            return stats
+        except Exception as e:
+            return 1
 
 
 parser = Parser()
@@ -763,6 +804,7 @@ ach = Ach()
 shell_ = Shell()
 history = History()
 debugger = Debugger()
+profile = Profile()
 
 def fetch():
     print("""
@@ -812,7 +854,10 @@ def man(manual=None):
 'history -c <arguments>' - clears history of utility commands, arguments (unnecessary): shell|cli, if not arguments - clears the whole history)
         """,
         "dbg_man": """Possible actions with 'dbg':
-'dbg check' - check if files and folders needed for daemon working exist"""
+'dbg check' - check if files and folders needed for daemon working exist""",
+        "prf_man": """Possible actions with 'prf':
+'prf profile' - print the whole user info
+"""
     }
 
     man_all = f"""'help'/'h'/'man' - print this menu
@@ -833,9 +878,6 @@ Hint: you could use 'more' and 'less' if you want to see a big list of something
         return
     print(man_all)
 
-def eprg(exit_code: int, is_cli=False):
-    if not is_cli:
-        sys.exit(exit_code)
 
 def wh(cmd: str, is_cli=False, clear_his=False):
     if not cmd:

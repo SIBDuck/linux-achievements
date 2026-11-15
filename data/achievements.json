@@ -6,7 +6,8 @@
         "description": "Successfully exit Vim without shutting down terminal.",
         "category": "vim",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "vim.close.force": {
         "id": "vim.close.force",
@@ -14,7 +15,8 @@
         "description": "Close vim by brutally shutting down terminal",
         "category": "vim",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 5
       },
       "vim.open.vimtutor": {
         "id": "vim.open.vimtutor",
@@ -22,7 +24,8 @@
         "description": "Open 'vimtutor'",
         "category": "vim",
         "diff": 0,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "vim.open.vi": {
         "id": "vim.open.vi",
@@ -30,7 +33,8 @@
         "description": "Open vi instead of vim. Know the history of Unix!",
         "category": "vim",
         "diff": 0,
-        "secret": false
+        "secret": false,
+        "xp": 5
       },
       "vim.time.stockholm.1": {
         "id": "vim.time.stockholm.1",
@@ -38,7 +42,8 @@
         "description": "Spend 10 minutes inside vim",
         "category": "vim",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 20
       },
       "vim.time.stockholm.2": {
         "id": "vim.time.stockholm.2",
@@ -46,7 +51,8 @@
         "description": "Spend 30 minutes inside vim",
         "category": "vim",
         "diff": 2,
-        "secret": false
+        "secret": false,
+        "xp": 25
       },
       "vim.time.stockholm.3": {
         "id": "vim.time.stockholm.3",
@@ -54,7 +60,8 @@
         "description": "Spend 1 hour inside vim",
         "category": "vim",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 30
       },
       "vim.time.stockholm.4": {
         "id": "vim.time.stockholm.4",
@@ -62,7 +69,8 @@
         "description": "Spend 5 hours inside vim",
         "category": "vim",
         "diff": 4,
-        "secret": false
+        "secret": false,
+        "xp": 40
       },
       "vim.time.stockholm.5": {
         "id": "vim.time.stockholm.5",
@@ -70,7 +78,8 @@
         "description": "Spend 10 hours inside vim",
         "category": "vim",
         "diff": 5,
-        "secret": false
+        "secret": false,
+        "xp": 50
       },
       "vim.time.stockholm.6": {
         "id": "vim.time.stockholm.6",
@@ -78,7 +87,8 @@
         "description": "Spend 24 hours inside vim",
         "category": "vim",
         "diff": 6,
-        "secret": false
+        "secret": false,
+        "xp": 70
       },
       "vim.time.stockholm.7": {
         "id": "vim.time.stockholm.7",
@@ -86,7 +96,8 @@
         "description": "Spend 50 hours inside vim",
         "category": "vim",
         "diff": 7,
-        "secret": false
+        "secret": false,
+        "xp": 80
       },
       "vim.time.stockholm.8": {
         "id": "vim.time.stockholm.8",
@@ -94,7 +105,8 @@
         "description": "Spend 100 hours inside vim",
         "category": "vim",
         "diff": 8,
-        "secret": false
+        "secret": false,
+        "xp": 90
       },
       "vim.time.stockholm.9": {
         "id": "vim.time.stockholm.9",
@@ -102,7 +114,8 @@
         "description": "Spend 500 hours inside vim",
         "category": "vim",
         "diff": 9,
-        "secret": false
+        "secret": false,
+        "xp": 120
       },
       "vim.time.stockholm.10": {
         "id": "vim.time.stockholm.10",
@@ -110,7 +123,8 @@
         "description": "Spend 1000 hours inside vim",
         "category": "vim",
         "diff": 10,
-        "secret": false
+        "secret": false,
+        "xp": 150
       },
       "vim.safe.file": {
         "id": "vim.safe.file",
@@ -118,7 +132,8 @@
         "description": "Save a file using `:w` command",
         "category": "vim",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "nano.open": {
         "id": "nano.open",
@@ -126,7 +141,8 @@
         "description": "Open Nano after panic-closing Vim. Here, at least, the exit keys are written at the bottom.",
         "category": "nano",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 1
       },
       "nano.close.200": {
         "id": "nano.close.200",
@@ -134,7 +150,8 @@
         "description": "Successfully exit nano because the exit button is literally on the screen.",
         "category": "nano",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 1
       },
       "nano.close.force": {
         "id": "nano.close.force",
@@ -142,7 +159,8 @@
         "description": "Close nano by brutally shutting down terminal",
         "category": "nano",
         "diff": -1,
-        "secret": false
+        "secret": false,
+        "xp": 0
       },
       "nano.muscle_memory": {
         "id": "nano.muscle_memory",
@@ -150,7 +168,8 @@
         "description": "Type vim command in nano. Old habits die hard.",
         "category": "nano",
         "diff": 2,
-        "secret": false
+        "secret": false,
+        "xp": 30
       },
       "vim_nano.new_exisitng_file": {
         "id": "vim_nano.new_exisitng_file",
@@ -158,7 +177,8 @@
         "description": "Create a new file, similar to existing one, using vim or nano",
         "category": ["vim", "nano"],
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "sh.open.bash": {
         "id": "sh.open.bash",
@@ -166,7 +186,8 @@
         "description": "Open bash",
         "category": "sh",
         "diff": 1,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "sh.open.zsh": {
         "id": "sh.open.zsh",
@@ -174,7 +195,8 @@
         "description": "Open zsh",
         "category": "sh",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "sh.kill_try": {
         "id": "sh.kill_try",
@@ -182,7 +204,8 @@
         "description": "Type rm -rf / and fail",
         "category": "sh",
         "diff": 4,
-        "secret": false
+        "secret": false,
+        "xp": 30
       },
       "sh.poweroff": {
         "id": "sh.poweroff",
@@ -190,7 +213,8 @@
         "description": "Get an error typed `sudo poweroff`",
         "category": "sh",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 20
       },
       "sh.reboot": {
         "id": "sh.reboot",
@@ -198,7 +222,8 @@
         "description": "Get an error typed `sudo reboot`",
         "category": "sh",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 20
       },
       "sh.xray": {
         "id": "sh.xray",
@@ -206,7 +231,8 @@
         "description": "Use `ls -a` to see hidden files",
         "category": "sh",
         "diff": 2,
-        "secret": false
+        "secret": false,
+        "xp": 10
       },
       "sh.shrc": {
         "id": "sh.shrc",
@@ -214,7 +240,8 @@
         "description": "Start editing your configuration file `.bashrc` or `.zshrc` with the text editor (vi, vim, nvim, micro, emacs, nano)",
         "category": "sh",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 25
       },
       "sh.repeater": {
         "id": "sh.repeater",
@@ -222,21 +249,24 @@
         "description": "Call the last command using `!!` 3 times in a row",
         "category": "sh",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 20
       },
       "sh.cheater": {
         "id": "sh.cheater",
         "title": "Cheater!",
         "description": "Try to cheat an achievement",
         "diff": 4,
-        "secret": false
+        "secret": false,
+        "xp": 30
       },
       "sh.recursion.la": {
         "id": "sh.recursion.la",
         "title": "Recursion!",
         "description": "Run cli utility from the... cli utility!",
         "diff": 3,
-        "secret": false
+        "secret": false,
+        "xp": 10
       }
 
 

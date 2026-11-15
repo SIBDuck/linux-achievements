@@ -124,7 +124,9 @@
     "stats": {
         "time": {
             "vim": 0
-        }
+        },
+        "xp": 0
+
     },
     "configs_installed": {
         "bash": false,

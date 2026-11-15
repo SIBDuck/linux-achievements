@@ -24,7 +24,7 @@ if str(ROOT_DIR) not in sys.path:
 from . import storage
 from . import notifications
 from config import variables as v
-
+from config import la
 import re
 import os
 
@@ -52,6 +52,7 @@ class Achievement:
         self.repeater(pcmd)
         self.vim_nano_exist(pcmd)
         self.player_data = self.db.load_data()
+        la.profile.count_achs(write=True)
         """
         self.poweroff_reboot(pcmd)
         self.ls_a(pcmd)
